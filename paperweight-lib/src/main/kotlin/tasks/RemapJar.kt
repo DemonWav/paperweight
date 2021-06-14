@@ -24,12 +24,56 @@ package io.papermc.paperweight.tasks
 
 import io.papermc.paperweight.util.*
 import io.papermc.paperweight.util.constants.*
+import io.papermc.paperweight.PaperweightException
 import kotlin.io.path.*
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.*
+
+fun tinyRemapperArgsList(): List<String> {
+    return listOf(
+        "{input}",
+        "{output}",
+        "{mappings}",
+        "{from}",
+        "{to}",
+        "{classpath}",
+        "--fixpackageaccess",
+        "--renameinvalidlocals",
+        "--threads=1",
+        "--rebuildsourcefilenames"
+    )
+}
+
+fun createTinyRemapperArgs(
+    input: String,
+    output: String,
+    mappings: String,
+    from: String,
+    to: String,
+    classpath: Array<String>
+): List<String> {
+    val result = mutableListOf<String>()
+    for (arg in tinyRemapperArgsList()) {
+        val mapped = when (arg) {
+            "{input}" -> input
+            "{output}" -> output
+            "{mappings}" -> mappings
+            "{from}" -> from
+            "{to}" -> to
+            "{classpath}" -> classpath
+            else -> arg
+        }
+        when (mapped) {
+            is String -> result += mapped
+            is Array<*> -> mapped.mapTo(result) { it as? String ?: throw PaperweightException("Expected String! Got: '$it'.") }
+            else -> throw PaperweightException("Don't know what to do with '$mapped'!")
+        }
+    }
+    return result
+}
 
 @CacheableTask
 abstract class RemapJar : JavaLauncherTask() {
@@ -69,9 +113,7 @@ abstract class RemapJar : JavaLauncherTask() {
         super.init()
 
         outputJar.convention(defaultOutput())
-        singleThreaded.convention(true)
         jvmargs.convention(listOf("-Xmx1G"))
-        rebuildSourceFilenames.convention(true)
     }
 
     @TaskAction
@@ -79,22 +121,14 @@ abstract class RemapJar : JavaLauncherTask() {
         val logFile = layout.cache.resolve(paperTaskOutput("log"))
         ensureDeleted(logFile)
 
-        val args = mutableListOf(
+        val args = createTinyRemapperArgs(
             inputJar.path.absolutePathString(),
             outputJar.path.absolutePathString(),
             mappingsFile.path.absolutePathString(),
             fromNamespace.get(),
             toNamespace.get(),
-            *remapClasspath.asFileTree.map { it.absolutePath }.toTypedArray(),
-            "--fixpackageaccess",
-            "--renameinvalidlocals"
+            remapClasspath.asFileTree.map { it.absolutePath }.toTypedArray()
         )
-        if (singleThreaded.get()) {
-            args += "--threads=1"
-        }
-        if (rebuildSourceFilenames.get()) {
-            args += "--rebuildsourcefilenames"
-        }
 
         ensureParentExists(logFile)
         launcher.runJar(remapper, layout.cache, logFile, jvmArgs = jvmargs.get(), args = args.toTypedArray())

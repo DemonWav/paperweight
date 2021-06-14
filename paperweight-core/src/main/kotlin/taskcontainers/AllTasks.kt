@@ -163,4 +163,32 @@ open class AllTasks(
         paperServerDir.set(extension.paper.paperServerDir)
         target.set(cache.resolve(MC_DEV_DIR))
     }
+
+    @Suppress("unused")
+    val generateDevelopmentBundle by tasks.registering<GenerateDevBundle> {
+        // dependsOn(applyPatches)
+
+        decompiledJar.set(decompileJar.flatMap { it.outputJar }.get())
+        sourceDir.set(extension.paper.paperServerDir.map { it.dir("src/main/java") }.get())
+        minecraftVersion.set(extension.minecraftVersion)
+
+        buildDataDir.set(extension.craftBukkit.buildDataDir)
+        spigotClassMappingsFile.set(extension.craftBukkit.mappingsDir.file(buildDataInfo.map { it.classMappings }))
+        spigotMemberMappingsFile.set(extension.craftBukkit.mappingsDir.file(buildDataInfo.map { it.memberMappings }))
+        spigotAtFile.set(extension.craftBukkit.mappingsDir.file(buildDataInfo.map { it.accessTransforms }))
+
+        paramMappingsUrl.set(extension.paramMappingsRepo)
+        decompilerUrl.set(extension.paramMappingsRepo)
+        remapperUrl.set(extension.paramMappingsRepo)
+
+        paramMappingsConfig.set(project.configurations.named(Constants.PARAM_MAPPINGS_CONFIG))
+        decompilerConfig.set(project.configurations.named(Constants.DECOMPILER_CONFIG))
+        remapperConfig.set(project.configurations.named(Constants.REMAPPER_CONFIG))
+
+        additionalSpigotClassMappingsFile.set(extension.paper.additionalSpigotClassMappings)
+        additionalSpigotMemberMappingsFile.set(extension.paper.additionalSpigotMemberMappings)
+        mappingsPatchFile.set(extension.paper.mappingsPatch)
+
+        devBundleFile.set(project.layout.buildDirectory.map { it.file("libs/paperDevBundle-${project.version}.zip") })
+    }
 }

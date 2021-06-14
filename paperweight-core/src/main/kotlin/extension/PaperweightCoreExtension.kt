@@ -39,6 +39,10 @@ open class PaperweightCoreExtension(objects: ObjectFactory, layout: ProjectLayou
     val minecraftVersion: Property<String> = objects.property()
     val serverProject: Property<Project> = objects.property()
 
+    val paramMappingsRepo: Property<String> = objects.property()
+    val decompileRepo: Property<String> = objects.property()
+    val remapRepo: Property<String> = objects.property()
+
     @Suppress("MemberVisibilityCanBePrivate")
     val craftBukkit = CraftBukkitExtension(objects, workDir)
     val spigot = SpigotExtension(objects, workDir)

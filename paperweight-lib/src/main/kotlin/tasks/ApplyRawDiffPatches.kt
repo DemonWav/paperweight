@@ -53,7 +53,7 @@ abstract class ApplyRawDiffPatches : ZippedTask() {
         Git.checkForGit()
 
         val input = inputDir.path
-        input.copyRecursively(rootDir)
+        input.copyRecursivelyTo(rootDir)
 
         val patches = patchDir.pathOrNull ?: return
         val patchSet = patches.useDirectoryEntries("*.patch") { it.toMutableList() }

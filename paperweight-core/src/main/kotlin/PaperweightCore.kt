@@ -92,6 +92,24 @@ class PaperweightCore : Plugin<Project> {
         }
 
         target.afterEvaluate {
+            target.repositories {
+                maven(extension.paramMappingsRepo) {
+                    content {
+                        onlyForConfigurations(Constants.PARAM_MAPPINGS_CONFIG)
+                    }
+                }
+                maven(extension.remapRepo) {
+                    content {
+                        onlyForConfigurations(Constants.REMAPPER_CONFIG)
+                    }
+                }
+                maven(extension.decompileRepo) {
+                    content {
+                        onlyForConfigurations(Constants.DECOMPILER_CONFIG)
+                    }
+                }
+            }
+
             // Setup the server jar
             val cache = target.layout.cache
 

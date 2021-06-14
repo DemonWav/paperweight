@@ -267,7 +267,7 @@ abstract class RemapPatches : BaseTask() {
             if (recreate) {
                 deleteRecursively()
                 createDirectories()
-                source?.copyRecursively(this)
+                source?.copyRecursivelyTo(this)
             }
         }
     }

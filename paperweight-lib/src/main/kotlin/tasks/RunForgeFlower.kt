@@ -35,6 +35,37 @@ import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 
+fun forgeFlowerArgList(): List<String> {
+    return listOf(
+        "-ind=    ",
+        "-din=1",
+        "-rbr=1",
+        "-dgs=1",
+        "-asc=1",
+        "-rsy=1",
+        "-iec=1",
+        "-jvn=0",
+        "-isl=0",
+        "-iib=1",
+        "-log=TRACE",
+        "-cfg",
+        "{libraries}",
+        "{input}",
+        "{output}"
+    )
+}
+
+fun createForgeFlowerArgs(libraries: String, input: String, output: String): List<String> {
+    return forgeFlowerArgList().map {
+        when (it) {
+            "{libraries}" -> libraries
+            "{input}" -> input
+            "{output}" -> output
+            else -> it
+        }
+    }
+}
+
 @CacheableTask
 abstract class RunForgeFlower : JavaLauncherTask() {
 
@@ -82,19 +113,7 @@ abstract class RunForgeFlower : JavaLauncherTask() {
                 }
             }
 
-            val argList = listOf(
-                "-ind=    ",
-                "-din=1",
-                "-rbr=1",
-                "-dgs=1",
-                "-asc=1",
-                "-rsy=1",
-                "-iec=1",
-                "-jvn=0",
-                "-isl=0",
-                "-iib=1",
-                "-log=TRACE",
-                "-cfg",
+            val argList = createForgeFlowerArgs(
                 tempFile.absolutePathString(),
                 inputJar.path.absolutePathString(),
                 target.absolutePathString()

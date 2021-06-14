@@ -105,14 +105,14 @@ private fun Path.fixWindowsPermissionsForDeletion() {
     }
 }
 
-fun Path.copyRecursively(target: Path) {
+fun Path.copyRecursivelyTo(target: Path) {
     target.createDirectories()
     if (!exists()) {
         return
     }
     Files.walk(this).use { stream ->
-        stream.forEach { f ->
-            val targetPath = target.resolve(f.relativeTo(this))
+        for (f in stream) {
+            val targetPath = target.resolve(f.relativeTo(this).invariantSeparatorsPathString)
             if (f.isDirectory()) {
                 targetPath.createDirectories()
             } else {
