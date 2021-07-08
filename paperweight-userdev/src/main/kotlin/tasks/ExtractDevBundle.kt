@@ -51,15 +51,6 @@ fun extractDevBundle(destinationDirectory: Path, devBundle: Path) {
     }
     destinationDirectory.createDirectories()
     devBundle.openZip().use { fs ->
-        for (root in fs.rootDirectories) {
-            for (entry in root.listDirectoryEntries()) {
-                val dest = destinationDirectory.resolve(entry.name)
-                if (entry.isRegularFile()) {
-                    entry.copyTo(dest)
-                } else {
-                    entry.copyRecursivelyTo(dest)
-                }
-            }
-        }
+        fs.getPath("/").copyRecursivelyTo(destinationDirectory)
     }
 }
