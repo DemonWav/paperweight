@@ -1,7 +1,7 @@
 /*
  * paperweight is a Gradle plugin for the PaperMC project.
  *
- * Copyright (c) 2021 Kyle Wood (DemonWav)
+ * Copyright (c) 2021 Kyle Wood (DenWav)
  *                    Contributors
  *
  * This library is free software; you can redistribute it and/or
@@ -23,17 +23,20 @@
 package io.papermc.paperweight.userdev
 
 import io.papermc.paperweight.DownloadService
-import io.papermc.paperweight.util.Constants
-import io.papermc.paperweight.util.cache
+import io.papermc.paperweight.userdev.tasks.extractDevBundle
+import io.papermc.paperweight.util.*
+import io.papermc.paperweight.util.constants.*
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.artifacts.repositories.IvyArtifactRepository
+import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.tasks.Delete
+import org.gradle.api.tasks.bundling.AbstractArchiveTask
 import org.gradle.kotlin.dsl.*
 
 class PaperweightUser : Plugin<Project> {
-
     override fun apply(target: Project) {
-        val userdev = target.extensions.create(Constants.EXTENSION, PaperweightUserExtension::class)
+        val userdev = target.extensions.create(PAPERWEIGHT_EXTENSION, PaperweightUserExtension::class)
 
         target.gradle.sharedServices.registerIfAbsent("download", DownloadService::class) {}
 
@@ -43,6 +46,78 @@ class PaperweightUser : Plugin<Project> {
             delete(target.layout.cache)
         }
 
-        target.configurations.create(Constants.REMAPPER_CONFIG)
+        target.configurations.create(DEV_BUNDLE_CONFIG)
+        target.configurations.create(DECOMPILER_CONFIG)
+        target.configurations.create(PARAM_MAPPINGS_CONFIG)
+        target.configurations.create(REMAPPER_CONFIG)
+        target.configurations.create(MOJANG_MAPPED_SERVER_CONFIG)
+
+        val userdevTasks = UserdevTasks(target)
+
+        target.afterEvaluate {
+            val jar = project.tasks.named<AbstractArchiveTask>("jar") {
+                archiveClassifier.set("dev")
+            }
+            val devJarTask = if (project.tasks.findByName("shadowJar") != null) {
+                project.tasks.named<AbstractArchiveTask>("shadowJar") {
+                    archiveClassifier.set("dev-all")
+                }
+            } else {
+                jar
+            }
+            userdevTasks.reobfJar {
+                inputJar.set(devJarTask.flatMap { it.archiveFile })
+            }
+
+            configurations.named(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME) {
+                extendsFrom(configurations.named(MOJANG_MAPPED_SERVER_CONFIG).get())
+            }
+
+            extractDevBundle(
+                target.layout.cache.resolve(paperTaskOutputDir("extractDevBundle")),
+                target.configurations.named(DEV_BUNDLE_CONFIG).map { it.singleFile }.convertToPath()
+            )
+
+            target.repositories {
+                maven(userdevTasks.devBundleConfig.map { it.buildData.paramMappings.url }.get()) {
+                    content { onlyForConfigurations(PARAM_MAPPINGS_CONFIG) }
+                }
+                maven(userdevTasks.devBundleConfig.map { it.remap.dep.url }.get()) {
+                    content { onlyForConfigurations(REMAPPER_CONFIG) }
+                }
+                maven(userdevTasks.devBundleConfig.map { it.decompile.dep.url }.get()) {
+                    content { onlyForConfigurations(DECOMPILER_CONFIG) }
+                }
+
+                ivy(layout.cache.resolve(IVY_REPOSITORY)) {
+                    content {
+                        val parts = userdevTasks.devBundleConfig.map { it.mappedServerCoordinates.split(":") }.get()
+                        includeModule(parts[0], parts[1])
+                    }
+                    patternLayout {
+                        artifact(IvyArtifactRepository.MAVEN_ARTIFACT_PATTERN)
+                        ivy(IvyArtifactRepository.MAVEN_IVY_PATTERN)
+                        setM2compatible(true)
+                    }
+                    metadataSources(IvyArtifactRepository.MetadataSources::ivyDescriptor)
+                    isAllowInsecureProtocol = true
+                    resolve.isDynamicMode = false
+                }
+            }
+
+            target.dependencies {
+                for (dep in userdevTasks.devBundleConfig.map { it.decompile.dep.coordinates }.get()) {
+                    DECOMPILER_CONFIG(dep)
+                }
+                for (dep in userdevTasks.devBundleConfig.map { it.buildData.paramMappings.coordinates }.get()) {
+                    PARAM_MAPPINGS_CONFIG(dep)
+                }
+                for (dep in userdevTasks.devBundleConfig.map { it.remap.dep.coordinates }.get()) {
+                    REMAPPER_CONFIG(dep)
+                }
+
+                MOJANG_MAPPED_SERVER_CONFIG(userdevTasks.devBundleConfig.map { it.mappedServerCoordinates }.get())
+            }
+        }
     }
 }

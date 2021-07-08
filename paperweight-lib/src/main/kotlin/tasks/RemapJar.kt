@@ -22,9 +22,9 @@
 
 package io.papermc.paperweight.tasks
 
+import io.papermc.paperweight.PaperweightException
 import io.papermc.paperweight.util.*
 import io.papermc.paperweight.util.constants.*
-import io.papermc.paperweight.PaperweightException
 import kotlin.io.path.*
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.RegularFileProperty
@@ -91,9 +91,6 @@ abstract class RemapJar : JavaLauncherTask() {
     @get:Input
     abstract val toNamespace: Property<String>
 
-    @get:Input
-    abstract val rebuildSourceFilenames: Property<Boolean>
-
     @get:CompileClasspath
     abstract val remapClasspath: ConfigurableFileCollection
 
@@ -105,9 +102,6 @@ abstract class RemapJar : JavaLauncherTask() {
 
     @get:Internal
     abstract val jvmargs: ListProperty<String>
-
-    @get:Internal
-    abstract val singleThreaded: Property<Boolean>
 
     override fun init() {
         super.init()

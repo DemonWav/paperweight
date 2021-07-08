@@ -208,7 +208,7 @@ abstract class RemapSources : JavaLauncherTask() {
 
                         merc.rewrite(tempOut, parameters.outputDir.path)
                     } else {
-                        tempOut.copyRecursively(parameters.outputDir.path)
+                        tempOut.copyRecursivelyTo(parameters.outputDir.path)
                     }
                 } finally {
                     tempOut.deleteRecursively()

@@ -1,7 +1,7 @@
 /*
  * paperweight is a Gradle plugin for the PaperMC project.
  *
- * Copyright (c) 2021 Kyle Wood (DemonWav)
+ * Copyright (c) 2021 Kyle Wood (DenWav)
  *                    Contributors
  *
  * This library is free software; you can redistribute it and/or
@@ -22,4 +22,4 @@
 
 package io.papermc.paperweight.userdev
 
-class PaperweightUserExtension
+abstract class PaperweightUserExtension

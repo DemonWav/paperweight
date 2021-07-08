@@ -31,6 +31,7 @@ import java.nio.file.Path
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.tasks.TaskContainer
+import org.gradle.api.tasks.bundling.Jar
 import org.gradle.kotlin.dsl.*
 
 @Suppress("MemberVisibilityCanBePrivate")
@@ -164,13 +165,43 @@ open class AllTasks(
         target.set(cache.resolve(MC_DEV_DIR))
     }
 
+    val decompileRemapJar by tasks.registering<RunForgeFlower> {
+        executable.from(project.configurations.named(DECOMPILER_CONFIG))
+
+        inputJar.set(remapJar.flatMap { it.outputJar })
+        libraries.from(downloadMcLibraries.map { it.outputDir.asFileTree })
+    }
+
+    val generateMojangMappedPaperclipPatch by tasks.registering<GeneratePaperclipPatch> {
+        originalJar.set(downloadServerJar.flatMap { it.outputJar })
+        mcVersion.set(extension.minecraftVersion)
+    }
+
+    val mojangMappedPaperclipJar by tasks.registering<Jar> {
+        archiveClassifier.set("mojang-mapped-paperclip")
+        with(tasks.named("jar", Jar::class).get())
+
+        val paperclipConfig = project.configurations.named(PAPERCLIP_CONFIG)
+        dependsOn(paperclipConfig, generateMojangMappedPaperclipPatch)
+
+        val paperclipZip = project.zipTree(paperclipConfig.map { it.singleFile }.get())
+        from(paperclipZip) {
+            exclude("META-INF/MANIFEST.MF")
+        }
+        from(project.zipTree(generateMojangMappedPaperclipPatch.flatMap { it.outputZip }))
+
+        manifest.from(paperclipZip.matching { include("META-INF/MANIFEST.MF") }.elements.map { it.single() })
+    }
+
     @Suppress("unused")
     val generateDevelopmentBundle by tasks.registering<GenerateDevBundle> {
         // dependsOn(applyPatches)
 
-        decompiledJar.set(decompileJar.flatMap { it.outputJar }.get())
+        decompiledJar.set(decompileRemapJar.flatMap { it.outputJar })
         sourceDir.set(extension.paper.paperServerDir.map { it.dir("src/main/java") }.get())
         minecraftVersion.set(extension.minecraftVersion)
+        serverUrl.set(buildDataInfo.map { it.serverUrl })
+        mojangMappedPaperclipFile.set(mojangMappedPaperclipJar.flatMap { it.archiveFile })
 
         buildDataDir.set(extension.craftBukkit.buildDataDir)
         spigotClassMappingsFile.set(extension.craftBukkit.mappingsDir.file(buildDataInfo.map { it.classMappings }))
@@ -178,17 +209,36 @@ open class AllTasks(
         spigotAtFile.set(extension.craftBukkit.mappingsDir.file(buildDataInfo.map { it.accessTransforms }))
 
         paramMappingsUrl.set(extension.paramMappingsRepo)
-        decompilerUrl.set(extension.paramMappingsRepo)
-        remapperUrl.set(extension.paramMappingsRepo)
+        decompilerUrl.set(extension.decompileRepo)
+        remapperUrl.set(extension.remapRepo)
 
-        paramMappingsConfig.set(project.configurations.named(Constants.PARAM_MAPPINGS_CONFIG))
-        decompilerConfig.set(project.configurations.named(Constants.DECOMPILER_CONFIG))
-        remapperConfig.set(project.configurations.named(Constants.REMAPPER_CONFIG))
+        paramMappingsConfig.set(project.configurations.named(PARAM_MAPPINGS_CONFIG))
+        decompilerConfig.set(project.configurations.named(DECOMPILER_CONFIG))
+        remapperConfig.set(project.configurations.named(REMAPPER_CONFIG))
 
         additionalSpigotClassMappingsFile.set(extension.paper.additionalSpigotClassMappings)
         additionalSpigotMemberMappingsFile.set(extension.paper.additionalSpigotMemberMappings)
         mappingsPatchFile.set(extension.paper.mappingsPatch)
+        reobfMappingsFile.set(patchReobfMappings.flatMap { it.outputMappings })
 
         devBundleFile.set(project.layout.buildDirectory.map { it.file("libs/paperDevBundle-${project.version}.zip") })
+    }
+
+    init {
+        project.afterEvaluate {
+            generateMojangMappedPaperclipPatch {
+                patchedJar.set(extension.serverProject.get().tasks.named<FixJarForReobf>("fixJarForReobf").flatMap { it.inputJar })
+            }
+            generateDevelopmentBundle {
+                val server = extension.serverProject.get()
+                mappedServerCoordinates.set(
+                    sequenceOf(
+                        server.group,
+                        server.name,
+                        server.version
+                    ).joinToString(":")
+                )
+            }
+        }
     }
 }

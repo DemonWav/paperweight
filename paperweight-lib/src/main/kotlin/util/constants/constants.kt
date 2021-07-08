@@ -35,6 +35,8 @@ const val PARAM_MAPPINGS_CONFIG = "paramMappings"
 const val REMAPPER_CONFIG = "remapper"
 const val DECOMPILER_CONFIG = "decompiler"
 const val PAPERCLIP_CONFIG = "paperclip"
+const val DEV_BUNDLE_CONFIG = "paperDevBundle"
+const val MOJANG_MAPPED_SERVER_CONFIG = "mojangMappedServer"
 
 const val CACHE_PATH = "caches"
 private const val PAPER_PATH = "paperweight"
@@ -78,5 +80,9 @@ const val FINAL_REMAPPED_JAR = "$TASK_CACHE/minecraft.jar"
 
 const val MC_DEV_DIR = "mcdev-source"
 
+const val IVY_REPOSITORY = "$PAPER_PATH/ivyRepository"
+
 fun Task.paperTaskOutput(ext: String) = paperTaskOutput(name, ext)
 fun paperTaskOutput(name: String, ext: String) = "$TASK_CACHE/$name.$ext"
+fun Task.paperTaskOutputDir() = paperTaskOutputDir(name)
+fun paperTaskOutputDir(name: String) = "$TASK_CACHE/$name"

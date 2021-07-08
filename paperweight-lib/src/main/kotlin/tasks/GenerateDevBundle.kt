@@ -1,7 +1,7 @@
 /*
  * paperweight is a Gradle plugin for the PaperMC project.
  *
- * Copyright (c) 2021 Kyle Wood (DemonWav)
+ * Copyright (c) 2021 Kyle Wood (DenWav)
  *                    Contributors
  *
  * This library is free software; you can redistribute it and/or
@@ -22,16 +22,7 @@
 
 package io.papermc.paperweight.tasks
 
-import io.papermc.paperweight.util.Git
-import io.papermc.paperweight.util.copyRecursivelyTo
-import io.papermc.paperweight.util.deleteForcefully
-import io.papermc.paperweight.util.deleteRecursively
-import io.papermc.paperweight.util.directory
-import io.papermc.paperweight.util.gson
-import io.papermc.paperweight.util.openZip
-import io.papermc.paperweight.util.path
-import io.papermc.paperweight.util.pathOrNull
-import io.papermc.paperweight.util.writeZip
+import io.papermc.paperweight.util.*
 import java.io.ByteArrayOutputStream
 import java.nio.charset.Charset
 import java.nio.file.Files
@@ -39,6 +30,7 @@ import java.nio.file.Path
 import kotlin.io.path.*
 import org.gradle.api.DefaultTask
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.FileSystemLocationProperty
 import org.gradle.api.file.RegularFileProperty
@@ -62,6 +54,15 @@ abstract class GenerateDevBundle : DefaultTask() {
 
     @get:Input
     abstract val minecraftVersion: Property<String>
+
+    @get:Input
+    abstract val serverUrl: Property<String>
+
+    @get:InputFile
+    abstract val mojangMappedPaperclipFile: RegularFileProperty
+
+    @get:Input
+    abstract val mappedServerCoordinates: Property<String>
 
     // Spigot configuration - start
     @get:InputDirectory
@@ -107,6 +108,9 @@ abstract class GenerateDevBundle : DefaultTask() {
     @get:Optional
     @get:InputFile
     abstract val mappingsPatchFile: RegularFileProperty
+
+    @get:InputFile
+    abstract val reobfMappingsFile: RegularFileProperty
     // Paper configuration - end
 
     @get:OutputFile
@@ -136,6 +140,8 @@ abstract class GenerateDevBundle : DefaultTask() {
                 additionalSpigotClassMappingsFile.pathIfExists?.copyTo(dataZip.resolve(additionalSpigotClassMappingsFileName))
                 additionalSpigotMemberMappingsFile.pathIfExists?.copyTo(dataZip.resolve(additionalSpigotMemberMappingsFileName))
                 mappingsPatchFile.pathIfExists?.copyTo(dataZip.resolve(mappingsPatchFileName))
+                reobfMappingsFile.path.copyTo(dataZip.resolve(reobfMappingsFileName))
+                mojangMappedPaperclipFile.path.copyTo(dataZip.resolve(mojangMappedPaperclipFileName))
 
                 val patchesZip = zip.getPath(patchesDir)
                 tempPatchDir.copyRecursivelyTo(patchesZip)
@@ -166,10 +172,13 @@ abstract class GenerateDevBundle : DefaultTask() {
                         file.copyTo(outputFile)
                     } else {
                         val diffText = diffFiles(relativeFilePath, decompFile, file)
-                        val patchName = relativeFile.name.substringBeforeLast('.') + ".patch"
+                        val patchName = relativeFile.name + ".patch"
                         val outputFile = output.resolve(relativeFilePath).resolveSibling(patchName)
                         outputFile.parent.createDirectories()
-                        outputFile.writeText(diffText)
+                        if (diffText.isNotBlank()) {
+                            // for some reason we end up with an empty file patch for com/mojang/math/package-info.java
+                            outputFile.writeText(diffText)
+                        }
                     }
                 }
             }
@@ -223,7 +232,8 @@ abstract class GenerateDevBundle : DefaultTask() {
             buildData = createBuildDataConfig(dataTargetDir),
             decompile = createDecompileRunner(),
             remap = createRemapRunner(),
-            patchDir = patchTargetDir
+            patchDir = patchTargetDir,
+            mappedServerCoordinates = mappedServerCoordinates.get()
         )
     }
 
@@ -252,7 +262,10 @@ abstract class GenerateDevBundle : DefaultTask() {
             paramMappings = determineMavenDep(paramMappingsUrl, paramMappingsConfig),
             additionalSpigotClassMappingsFile = additionalSpigotClassMappingsFile.ifExists("$targetDir/$additionalSpigotClassMappingsFileName"),
             additionalSpigotMemberMappingsFile = additionalSpigotMemberMappingsFile.ifExists("$targetDir/$additionalSpigotMemberMappingsFileName"),
-            mappingsPatchFile = mappingsPatchFile.ifExists("$targetDir/$mappingsPatchFileName")
+            mappingsPatchFile = mappingsPatchFile.ifExists("$targetDir/$mappingsPatchFileName"),
+            reobfMappingsFile = "$targetDir/$reobfMappingsFileName",
+            serverUrl = serverUrl.get(),
+            mojangMappedPaperclipFile = "$targetDir/$mojangMappedPaperclipFileName"
         )
     }
 
@@ -262,7 +275,17 @@ abstract class GenerateDevBundle : DefaultTask() {
 
     private fun determineArtifactCoordinates(configuration: Configuration): List<String> {
         return configuration.dependencies.map { dep ->
-            (dep.group ?: error("no group: $dep")) + ":" + dep.name + ":" + (dep.version ?: error("no version: $dep"))
+            sequenceOf(
+                "group" to dep.group,
+                "name" to dep.name,
+                "version" to dep.version,
+                "classifier" to ((dep as ModuleDependency).artifacts.singleOrNull()?.classifier ?: "")
+            ).filter {
+                if (it.second == null) error("No ${it.first}: $dep")
+                it.second?.isNotEmpty() ?: false
+            }.map {
+                it.second
+            }.joinToString(":")
         }
     }
 
@@ -295,6 +318,7 @@ abstract class GenerateDevBundle : DefaultTask() {
 
     data class DevBundleConfig(
         val minecraftVersion: String,
+        val mappedServerCoordinates: String,
         val spigotData: SpigotData,
         val buildData: BuildData,
         val decompile: Runner,
@@ -306,7 +330,10 @@ abstract class GenerateDevBundle : DefaultTask() {
         val paramMappings: MavenDep,
         val additionalSpigotClassMappingsFile: String?,
         val additionalSpigotMemberMappingsFile: String?,
-        val mappingsPatchFile: String?
+        val mappingsPatchFile: String?,
+        val reobfMappingsFile: String,
+        val serverUrl: String,
+        val mojangMappedPaperclipFile: String
     )
 
     data class SpigotData(val ref: String, val checkoutUrl: String, val classMappingsFile: String, val memberMappingsFile: String, val atFile: String)
@@ -317,5 +344,7 @@ abstract class GenerateDevBundle : DefaultTask() {
         const val additionalSpigotClassMappingsFileName = "additional-spigot-class-mappings.csrg"
         const val additionalSpigotMemberMappingsFileName = "additional-spigot-member-mappings.csrg"
         const val mappingsPatchFileName = "mappings-patch.tiny"
+        const val reobfMappingsFileName = "mojang+yarn-spigot-reobf-patched.tiny"
+        const val mojangMappedPaperclipFileName = "paperclip-mojang-mapped.jar"
     }
 }
