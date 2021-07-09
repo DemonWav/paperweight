@@ -180,18 +180,7 @@ open class AllTasks(
 
     val mojangMappedPaperclipJar by tasks.registering<Jar> {
         archiveClassifier.set("mojang-mapped-paperclip")
-        with(tasks.named("jar", Jar::class).get())
-
-        val paperclipConfig = project.configurations.named(PAPERCLIP_CONFIG)
-        dependsOn(paperclipConfig, generateMojangMappedPaperclipPatch)
-
-        val paperclipZip = project.zipTree(paperclipConfig.map { it.singleFile }.get())
-        from(paperclipZip) {
-            exclude("META-INF/MANIFEST.MF")
-        }
-        from(project.zipTree(generateMojangMappedPaperclipPatch.flatMap { it.outputZip }))
-
-        manifest.from(paperclipZip.matching { include("META-INF/MANIFEST.MF") }.elements.map { it.single() })
+        configurePaperclipJar(project, generateMojangMappedPaperclipPatch)
     }
 
     @Suppress("unused")

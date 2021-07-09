@@ -146,20 +146,7 @@ class PaperweightPatcher : Plugin<Project> {
                 mcVersion.set(upstreamData.map { it.mcVersion })
             }
 
-            paperclipJar {
-                with(target.tasks.named("jar", Jar::class).get())
-
-                val paperclipConfig = target.configurations.named(PAPERCLIP_CONFIG)
-                dependsOn(paperclipConfig, generatePaperclipPatch)
-
-                val paperclipZip = target.zipTree(paperclipConfig.map { it.singleFile })
-                from(paperclipZip) {
-                    exclude("META-INF/MANIFEST.MF")
-                }
-                from(target.zipTree(generatePaperclipPatch.flatMap { it.outputZip }.get()))
-
-                manifest.from(paperclipZip.matching { include("META-INF/MANIFEST.MF") }.elements.map { it.single() })
-            }
+            paperclipJar.configurePaperclipJar(target, generatePaperclipPatch)
         }
     }
 
