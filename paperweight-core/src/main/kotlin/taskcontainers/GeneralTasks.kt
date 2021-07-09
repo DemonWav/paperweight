@@ -57,6 +57,6 @@ open class GeneralTasks(
 
     val filterVanillaJar by tasks.registering<FilterJar> {
         inputJar.set(downloadServerJar.flatMap { it.outputJar })
-        includes.set(listOf("/*.class", "/net/minecraft/**", "/com/mojang/math/**"))
+        includes.set(extension.vanillaJarIncludes)
     }
 }

@@ -34,6 +34,7 @@ import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.FileSystemLocationProperty
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.Classpath
@@ -63,6 +64,9 @@ abstract class GenerateDevBundle : DefaultTask() {
 
     @get:Input
     abstract val mappedServerCoordinates: Property<String>
+
+    @get:Input
+    abstract val vanillaJarIncludes: ListProperty<String>
 
     // Spigot configuration - start
     @get:InputDirectory
@@ -265,7 +269,8 @@ abstract class GenerateDevBundle : DefaultTask() {
             mappingsPatchFile = mappingsPatchFile.ifExists("$targetDir/$mappingsPatchFileName"),
             reobfMappingsFile = "$targetDir/$reobfMappingsFileName",
             serverUrl = serverUrl.get(),
-            mojangMappedPaperclipFile = "$targetDir/$mojangMappedPaperclipFileName"
+            mojangMappedPaperclipFile = "$targetDir/$mojangMappedPaperclipFileName",
+            vanillaJarIncludes = vanillaJarIncludes.get()
         )
     }
 
@@ -333,7 +338,8 @@ abstract class GenerateDevBundle : DefaultTask() {
         val mappingsPatchFile: String?,
         val reobfMappingsFile: String,
         val serverUrl: String,
-        val mojangMappedPaperclipFile: String
+        val mojangMappedPaperclipFile: String,
+        val vanillaJarIncludes: List<String>
     )
 
     data class SpigotData(val ref: String, val checkoutUrl: String, val classMappingsFile: String, val memberMappingsFile: String, val atFile: String)

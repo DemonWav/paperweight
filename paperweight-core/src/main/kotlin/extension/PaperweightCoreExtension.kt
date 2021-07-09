@@ -28,6 +28,7 @@ import org.gradle.api.Project
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.ProjectLayout
 import org.gradle.api.model.ObjectFactory
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.kotlin.dsl.*
 
@@ -42,6 +43,8 @@ open class PaperweightCoreExtension(objects: ObjectFactory, layout: ProjectLayou
     val paramMappingsRepo: Property<String> = objects.property()
     val decompileRepo: Property<String> = objects.property()
     val remapRepo: Property<String> = objects.property()
+
+    val vanillaJarIncludes: ListProperty<String> = objects.listProperty<String>().convention(listOf("/*.class", "/net/minecraft/**", "/com/mojang/math/**"))
 
     @Suppress("MemberVisibilityCanBePrivate")
     val craftBukkit = CraftBukkitExtension(objects, workDir)

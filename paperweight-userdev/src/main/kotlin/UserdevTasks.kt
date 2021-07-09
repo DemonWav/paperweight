@@ -65,7 +65,7 @@ class UserdevTasks(
 
     val filterVanillaJar by tasks.registering<FilterJar> {
         inputJar.set(downloadServerJar.flatMap { it.outputJar })
-        includes.set(listOf("/*.class", "/net/minecraft/**", "/com/mojang/math/**"))
+        includes.set(devBundleConfig.map { it.buildData.vanillaJarIncludes })
     }
 
     val downloadMcManifest by tasks.registering<DownloadTask> {
@@ -139,18 +139,10 @@ class UserdevTasks(
         remapper.from(project.configurations.named(REMAPPER_CONFIG))
     }
 
-    val copyResources by tasks.registering<CopyResources> {
-        inputJar.set(remapJar.flatMap { it.outputJar })
-        vanillaJar.set(downloadServerJar.flatMap { it.outputJar })
-        includes.set(listOf("/data/**", "/assets/**", "version.json", "yggdrasil_session_pubkey.der", "pack.mcmeta"))
-
-        outputJar.set(cache.resolve(FINAL_REMAPPED_JAR))
-    }
-
     val decompileJar by tasks.registering<RunForgeFlower> {
         executable.from(project.configurations.named(DECOMPILER_CONFIG))
 
-        inputJar.set(copyResources.flatMap { it.outputJar })
+        inputJar.set(remapJar.flatMap { it.outputJar })
         libraries.from(downloadMcLibraries.map { it.outputDir.asFileTree })
     }
 

@@ -202,6 +202,7 @@ open class AllTasks(
         minecraftVersion.set(extension.minecraftVersion)
         serverUrl.set(buildDataInfo.map { it.serverUrl })
         mojangMappedPaperclipFile.set(mojangMappedPaperclipJar.flatMap { it.archiveFile })
+        vanillaJarIncludes.set(extension.vanillaJarIncludes)
 
         buildDataDir.set(extension.craftBukkit.buildDataDir)
         spigotClassMappingsFile.set(extension.craftBukkit.mappingsDir.file(buildDataInfo.map { it.classMappings }))
