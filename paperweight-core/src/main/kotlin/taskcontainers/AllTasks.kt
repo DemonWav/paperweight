@@ -28,6 +28,8 @@ import io.papermc.paperweight.tasks.*
 import io.papermc.paperweight.util.*
 import io.papermc.paperweight.util.constants.*
 import java.nio.file.Path
+import java.util.Locale
+import kotlin.io.path.*
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
@@ -193,6 +195,12 @@ open class AllTasks(
         serverUrl.set(buildDataInfo.map { it.serverUrl })
         mojangMappedPaperclipFile.set(mojangMappedPaperclipJar.flatMap { it.archiveFile })
         vanillaJarIncludes.set(extension.vanillaJarIncludes)
+        vanillaServerLibraries.set(
+            inspectVanillaJar.map { inspect ->
+                inspect.serverLibraries.path.readLines(Charsets.UTF_8).filter { it.isNotBlank() }
+            }
+        )
+        serverProject.set(extension.serverProject)
 
         buildDataDir.set(extension.craftBukkit.buildDataDir)
         spigotClassMappingsFile.set(extension.craftBukkit.mappingsDir.file(buildDataInfo.map { it.classMappings }))
@@ -221,7 +229,7 @@ open class AllTasks(
                 mappedServerCoordinates.set(
                     sequenceOf(
                         server.group,
-                        server.name,
+                        server.name.toLowerCase(Locale.ENGLISH),
                         server.version
                     ).joinToString(":")
                 )

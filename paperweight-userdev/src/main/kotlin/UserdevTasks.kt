@@ -32,6 +32,7 @@ import io.papermc.paperweight.tasks.GenerateDevBundle.DevBundleConfig
 import io.papermc.paperweight.userdev.tasks.ApplyDevBundlePatches
 import io.papermc.paperweight.userdev.tasks.ApplyPaperclipPatch
 import io.papermc.paperweight.userdev.tasks.ExtractDevBundle
+import io.papermc.paperweight.userdev.tasks.FilterPaperJar
 import io.papermc.paperweight.userdev.tasks.InstallToIvyRepo
 import io.papermc.paperweight.util.*
 import io.papermc.paperweight.util.constants.*
@@ -156,11 +157,17 @@ class UserdevTasks(
         paperclip.set(extractDevBundle.flatMap { task -> task.outputFolder.file(devBundleConfig.map { it.buildData.mojangMappedPaperclipFile }) })
     }
 
+    val filterPaperJar by tasks.registering<FilterPaperJar> {
+        inputJar.set(patchPaperclip.flatMap { it.patchedJar })
+        sourcesJar.set(applyDevBundlePatches.flatMap { it.outputZip })
+        includes.set(listOf("/org/bukkit/craftbukkit/**"))
+    }
+
     val setupPaperweightWorkspace by tasks.registering<InstallToIvyRepo> {
         group = "paperweight"
         description = "Setup Mojang mapped Paper with sources attached for plugin development."
         artifactCoordinates.set(devBundleConfig.map { it.mappedServerCoordinates })
-        binaryJar.set(patchPaperclip.flatMap { it.patchedJar })
+        binaryJar.set(filterPaperJar.flatMap { it.outputJar })
         sourcesJar.set(applyDevBundlePatches.flatMap { it.outputZip })
     }
 

@@ -51,6 +51,10 @@ class PaperweightUser : Plugin<Project> {
         target.configurations.create(PARAM_MAPPINGS_CONFIG)
         target.configurations.create(REMAPPER_CONFIG)
         target.configurations.create(MOJANG_MAPPED_SERVER_CONFIG)
+        target.configurations.create(MINECRAFT_LIBRARIES_CONFIG) {
+            exclude("junit", "junit") // json-simple exposes junit for some reason
+        }
+        target.configurations.create(PAPER_API_CONFIG)
 
         val userdevTasks = UserdevTasks(target)
 
@@ -70,7 +74,11 @@ class PaperweightUser : Plugin<Project> {
             }
 
             configurations.named(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME) {
-                extendsFrom(configurations.named(MOJANG_MAPPED_SERVER_CONFIG).get())
+                extendsFrom(
+                    configurations.named(MOJANG_MAPPED_SERVER_CONFIG).get(),
+                    configurations.named(MINECRAFT_LIBRARIES_CONFIG).get(),
+                    configurations.named(PAPER_API_CONFIG).get()
+                )
             }
 
             extractDevBundle(
@@ -87,6 +95,17 @@ class PaperweightUser : Plugin<Project> {
                 }
                 maven(userdevTasks.devBundleConfig.map { it.decompile.dep.url }.get()) {
                     content { onlyForConfigurations(DECOMPILER_CONFIG) }
+                }
+                for (repo in userdevTasks.devBundleConfig.map { it.buildData.libraryRepositories }.get()) {
+                    maven(repo) {
+                        content {
+                            onlyForConfigurations(
+                                MINECRAFT_LIBRARIES_CONFIG,
+                                PAPER_API_CONFIG,
+                                JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME
+                            )
+                        }
+                    }
                 }
 
                 ivy(layout.cache.resolve(IVY_REPOSITORY)) {
@@ -116,6 +135,12 @@ class PaperweightUser : Plugin<Project> {
                     REMAPPER_CONFIG(dep)
                 }
 
+                for (lib in userdevTasks.devBundleConfig.map { it.buildData.libraryDependencies }.get()) {
+                    MINECRAFT_LIBRARIES_CONFIG(lib)
+                }
+
+                PAPER_API_CONFIG(userdevTasks.devBundleConfig.map { it.buildData.apiCoordinates }.get())
+                PAPER_API_CONFIG(userdevTasks.devBundleConfig.map { it.buildData.mojangApiCoordinates }.get())
                 MOJANG_MAPPED_SERVER_CONFIG(userdevTasks.devBundleConfig.map { it.mappedServerCoordinates }.get())
             }
         }

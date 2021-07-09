@@ -29,21 +29,18 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.*
 import org.gradle.api.DefaultTask
+import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.artifacts.ExternalModuleDependency
 import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.FileSystemLocationProperty
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.Provider
-import org.gradle.api.tasks.Classpath
-import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.InputDirectory
-import org.gradle.api.tasks.InputFile
-import org.gradle.api.tasks.Optional
-import org.gradle.api.tasks.OutputFile
-import org.gradle.api.tasks.TaskAction
+import org.gradle.api.tasks.*
 
 abstract class GenerateDevBundle : DefaultTask() {
 
@@ -67,6 +64,21 @@ abstract class GenerateDevBundle : DefaultTask() {
 
     @get:Input
     abstract val vanillaJarIncludes: ListProperty<String>
+
+    @get:Input
+    abstract val vanillaServerLibraries: ListProperty<String>
+
+    @get:Input
+    abstract val libraryRepositories: ListProperty<String>
+
+    @get:Internal
+    abstract val serverProject: Property<Project>
+
+    @get:Input
+    abstract val apiCoordinates: Property<String>
+
+    @get:Input
+    abstract val mojangApiCoordinates: Property<String>
 
     // Spigot configuration - start
     @get:InputDirectory
@@ -270,8 +282,42 @@ abstract class GenerateDevBundle : DefaultTask() {
             reobfMappingsFile = "$targetDir/$reobfMappingsFileName",
             serverUrl = serverUrl.get(),
             mojangMappedPaperclipFile = "$targetDir/$mojangMappedPaperclipFileName",
-            vanillaJarIncludes = vanillaJarIncludes.get()
+            vanillaJarIncludes = vanillaJarIncludes.get(),
+            libraryDependencies = determineLibraries(vanillaServerLibraries.get()),
+            libraryRepositories = libraryRepositories.get(),
+            apiCoordinates = "${apiCoordinates.get()}:${serverProject.get().version}",
+            mojangApiCoordinates = "${mojangApiCoordinates.get()}:${serverProject.get().version}"
         )
+    }
+
+    private fun determineLibraries(vanillaServerLibraries: List<String>): Set<String> {
+        val new = arrayListOf<String>()
+
+        sequenceOf(
+            serverProject.get().configurations.named(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME).get(),
+            serverProject.get().configurations.named(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME).get()
+        ).forEach { config ->
+            config.dependencies.forEach { dependency ->
+                // don't want project dependencies
+                if (dependency is ExternalModuleDependency) {
+                    val version = sequenceOf(
+                        dependency.versionConstraint.strictVersion,
+                        dependency.versionConstraint.requiredVersion,
+                        dependency.versionConstraint.preferredVersion,
+                        dependency.version
+                    ).filterNotNull().filter { it.isNotBlank() }.first()
+                    new += sequenceOf(
+                        dependency.group,
+                        dependency.name,
+                        version
+                    ).joinToString(":")
+                }
+            }
+        }
+
+        val result = vanillaServerLibraries.toMutableSet()
+        result += new
+        return result
     }
 
     private fun determineMavenDep(url: Provider<String>, configuration: Provider<Configuration>): MavenDep {
@@ -339,7 +385,11 @@ abstract class GenerateDevBundle : DefaultTask() {
         val reobfMappingsFile: String,
         val serverUrl: String,
         val mojangMappedPaperclipFile: String,
-        val vanillaJarIncludes: List<String>
+        val vanillaJarIncludes: List<String>,
+        val libraryDependencies: Set<String>,
+        val libraryRepositories: List<String>,
+        val apiCoordinates: String,
+        val mojangApiCoordinates: String
     )
 
     data class SpigotData(val ref: String, val checkoutUrl: String, val classMappingsFile: String, val memberMappingsFile: String, val atFile: String)
