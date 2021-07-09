@@ -44,7 +44,9 @@ open class PaperweightCoreExtension(objects: ObjectFactory, layout: ProjectLayou
     val decompileRepo: Property<String> = objects.property()
     val remapRepo: Property<String> = objects.property()
 
-    val vanillaJarIncludes: ListProperty<String> = objects.listProperty<String>().convention(listOf("/*.class", "/net/minecraft/**", "/com/mojang/math/**"))
+    val vanillaJarIncludes: ListProperty<String> = objects.listProperty<String>().convention(
+        listOf("/*.class", "/net/minecraft/**", "/com/mojang/math/**")
+    )
 
     @Suppress("MemberVisibilityCanBePrivate")
     val craftBukkit = CraftBukkitExtension(objects, workDir)
