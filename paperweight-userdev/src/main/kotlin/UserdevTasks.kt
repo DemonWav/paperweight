@@ -131,7 +131,7 @@ class UserdevTasks(
         outputMappings.set(cache.resolve(MOJANG_YARN_MAPPINGS))
     }
 
-    val remapJar by tasks.registering<RemapJar> {
+    val remapMinecraftJar by tasks.registering<RemapJar> {
         inputJar.set(filterVanillaJar.flatMap { it.outputJar })
         mappingsFile.set(generateMappings.flatMap { it.outputMappings })
         fromNamespace.set(OBF_NAMESPACE)
@@ -139,15 +139,15 @@ class UserdevTasks(
         remapper.from(project.configurations.named(REMAPPER_CONFIG))
     }
 
-    val decompileJar by tasks.registering<RunForgeFlower> {
+    val decompileMinecraftJar by tasks.registering<RunForgeFlower> {
         executable.from(project.configurations.named(DECOMPILER_CONFIG))
 
-        inputJar.set(remapJar.flatMap { it.outputJar })
+        inputJar.set(remapMinecraftJar.flatMap { it.outputJar })
         libraries.from(downloadMcLibraries.map { it.outputDir.asFileTree })
     }
 
-    val patchDecompileJar by tasks.registering<ApplyDevBundlePatches> {
-        inputZip.set(decompileJar.flatMap { it.outputJar })
+    val applyDevBundlePatches by tasks.registering<ApplyDevBundlePatches> {
+        inputZip.set(decompileMinecraftJar.flatMap { it.outputJar })
         devBundlePatches.set(extractDevBundle.flatMap { task -> task.outputFolder.dir(devBundleConfig.map { it.patchDir }) })
     }
 
@@ -161,7 +161,7 @@ class UserdevTasks(
         description = "Setup Mojang mapped Paper with sources attached for plugin development."
         artifactCoordinates.set(devBundleConfig.map { it.mappedServerCoordinates })
         binaryJar.set(patchPaperclip.flatMap { it.patchedJar })
-        sourcesJar.set(patchDecompileJar.flatMap { it.outputZip })
+        sourcesJar.set(applyDevBundlePatches.flatMap { it.outputZip })
     }
 
     val reobfJar by tasks.registering<RemapJar> {
