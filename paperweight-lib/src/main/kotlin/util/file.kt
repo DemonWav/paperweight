@@ -29,6 +29,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.PathMatcher
 import java.nio.file.attribute.DosFileAttributeView
+import java.security.DigestInputStream
+import java.security.MessageDigest
 import java.util.stream.Stream
 import java.util.stream.StreamSupport
 import kotlin.io.path.*
@@ -140,3 +142,14 @@ fun FileSystem.walk(): Stream<Path> {
 }
 
 fun ProcessBuilder.directory(path: Path): ProcessBuilder = directory(path.toFile())
+
+fun Path.hashFile(digest: MessageDigest): ByteArray = inputStream().use { iS ->
+    val digestStream = DigestInputStream(iS, digest)
+    digestStream.use { stream ->
+        val buffer = ByteArray(1024)
+        while (stream.read(buffer) != -1) {
+            // reading
+        }
+    }
+    digestStream.messageDigest.digest()
+}

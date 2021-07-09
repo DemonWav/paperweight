@@ -32,7 +32,6 @@ import java.security.NoSuchAlgorithmException
 import java.util.Properties
 import javax.inject.Inject
 import kotlin.collections.set
-import kotlin.experimental.and
 import kotlin.io.path.*
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
@@ -123,11 +122,7 @@ abstract class GeneratePaperclipPatch : JavaLauncherZippedTask() {
             }
 
             // Add the SHA-256 hashes for the files
-            val digestSha256 = try {
-                MessageDigest.getInstance("SHA-256")
-            } catch (e: NoSuchAlgorithmException) {
-                throw PaperweightException("Could not create SHA-256 hasher", e)
-            }
+            val digestSha256 = digestSha256()
 
             // Vanilla's URL uses a SHA1 hash of the vanilla server jar
             val digestSha1 = try {
@@ -155,14 +150,6 @@ abstract class GeneratePaperclipPatch : JavaLauncherZippedTask() {
                     "Default Paperclip launch values. Can be overridden by placing a paperclip.properties file in the server directory."
                 )
             }
-        }
-
-        private fun toHex(hash: ByteArray): String {
-            val sb: StringBuilder = StringBuilder(hash.size * 2)
-            for (aHash in hash) {
-                sb.append("%02X".format(aHash and 0xFF.toByte()))
-            }
-            return sb.toString()
         }
     }
 

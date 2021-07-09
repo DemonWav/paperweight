@@ -38,7 +38,6 @@ import io.papermc.paperweight.util.constants.*
 import java.nio.file.Path
 import kotlin.io.path.*
 import org.gradle.api.Project
-import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.TaskContainer
 import org.gradle.kotlin.dsl.*
 
@@ -51,19 +50,16 @@ class UserdevTasks(
         devBundleZip.fileProvider(project.configurations.named(DEV_BUNDLE_CONFIG).map { it.singleFile })
         outputFolder.set(cache.resolve(paperTaskOutputDir()))
     }
-
-    val devBundleConfig: Provider<DevBundleConfig>
-        get() = extractDevBundle.map {
-            val configFile = it.outputFolder.file("config.json").path
-            val config: DevBundleConfig = configFile.bufferedReader(Charsets.UTF_8).use { reader ->
-                gson.fromJson(reader)
-            }
-            config
+    val devBundleConfig = extractDevBundle.map {
+        val configFile = it.outputFolder.file("config.json").path
+        val config: DevBundleConfig = configFile.bufferedReader(Charsets.UTF_8).use { reader ->
+            gson.fromJson(reader)
         }
+        config
+    }
 
     val downloadServerJar by tasks.registering<DownloadServerJar> {
         downloadUrl.set(devBundleConfig.map { it.buildData.serverUrl })
-
         downloader.set(project.download)
     }
 
@@ -168,13 +164,17 @@ class UserdevTasks(
         paperclip.set(extractDevBundle.flatMap { task -> task.outputFolder.file(devBundleConfig.map { it.buildData.mojangMappedPaperclipFile }) })
     }
 
-    val installArtifactsToLocalIvyRepo by tasks.registering<InstallToIvyRepo> {
+    val setupPaperweightWorkspace by tasks.registering<InstallToIvyRepo> {
+        group = "paperweight"
+        description = "Setup Mojang mapped Paper with sources attached for plugin development."
         artifactCoordinates.set(devBundleConfig.map { it.mappedServerCoordinates })
         binaryJar.set(patchPaperclip.flatMap { it.patchedJar })
         sourcesJar.set(patchDecompileJar.flatMap { it.outputZip })
     }
 
     val reobfJar by tasks.registering<RemapJar> {
+        group = "paperweight"
+        description = "Remap the compiled plugin jar to Spigot's obfuscated runtime names."
         outputJar.convention(project.layout.buildDirectory.file("libs/${project.name}-${project.version}.jar"))
         mappingsFile.set(extractDevBundle.flatMap { task -> task.outputFolder.file(devBundleConfig.map { it.buildData.reobfMappingsFile }) })
         fromNamespace.set(DEOBF_NAMESPACE)

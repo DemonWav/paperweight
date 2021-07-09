@@ -25,6 +25,7 @@ package io.papermc.paperweight.userdev.tasks
 import io.papermc.paperweight.tasks.*
 import io.papermc.paperweight.util.*
 import io.papermc.paperweight.util.constants.*
+import java.nio.file.Path
 import kotlin.io.path.*
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
@@ -46,13 +47,7 @@ abstract class InstallToIvyRepo : BaseTask() {
     private fun run() {
         val root = project.layout.cache.resolve(IVY_REPOSITORY)
 
-        // group, name, version, classifier
-        val parts = artifactCoordinates.get().split(":")
-        val group = root.resolve(parts[0].replace(".", "/"))
-        val name = parts[1]
-        val nameDir = group.resolve(name)
-        val version = parts[2]
-        val versionDir = nameDir.resolve(version)
+        val (group, name, version, versionDir) = parseCoordinates(artifactCoordinates.get(), root)
 
         versionDir.createDirectories()
 
@@ -65,7 +60,7 @@ abstract class InstallToIvyRepo : BaseTask() {
         val xml = """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <ivy-module xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://ant.apache.org/ivy/schemas/ivy.xsd" version="2.0">
-                    <info organisation="${parts[0]}" module="$name" revision="$version" status="release">
+                    <info organisation="$group" module="$name" revision="$version" status="release">
                     </info>
                     <dependencies>
                     </dependencies>
@@ -74,4 +69,22 @@ abstract class InstallToIvyRepo : BaseTask() {
         """.trimIndent()
         ivy.writeText(xml, Charsets.UTF_8)
     }
+
+    private fun parseCoordinates(coordinatesString: String, root: Path): ArtifactLocation {
+        val parts = coordinatesString.split(":")
+        val group = parts[0]
+        val groupDir = root.resolve(group.replace(".", "/"))
+        val name = parts[1]
+        val nameDir = groupDir.resolve(name)
+        val version = parts[2]
+        val versionDir = nameDir.resolve(version)
+        return ArtifactLocation(group, name, version, versionDir)
+    }
+
+    private data class ArtifactLocation(
+        val group: String,
+        val name: String,
+        val version: String,
+        val versionDir: Path
+    )
 }

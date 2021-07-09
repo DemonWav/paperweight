@@ -46,10 +46,20 @@ abstract class ExtractDevBundle : BaseTask() {
 }
 
 fun extractDevBundle(destinationDirectory: Path, devBundle: Path) {
+    val hashFile = destinationDirectory.resolve("current.sha256")
+    val newDevBundleHash = toHex(devBundle.hashFile(digestSha256()))
+
     if (destinationDirectory.exists()) {
+        val currentDevBundleHash = if (hashFile.isRegularFile()) hashFile.readText(Charsets.UTF_8) else ""
+
+        if (currentDevBundleHash.isNotBlank() && newDevBundleHash == currentDevBundleHash) {
+            return
+        }
         destinationDirectory.deleteRecursively()
     }
     destinationDirectory.createDirectories()
+
+    hashFile.writeText(newDevBundleHash, Charsets.UTF_8)
     devBundle.openZip().use { fs ->
         fs.getPath("/").copyRecursivelyTo(destinationDirectory)
     }
