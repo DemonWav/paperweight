@@ -30,6 +30,7 @@ import io.papermc.paperweight.util.constants.*
 import java.nio.file.Path
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.tasks.TaskContainer
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.kotlin.dsl.*
@@ -209,10 +210,6 @@ open class AllTasks(
         spigotMemberMappingsFile.set(extension.craftBukkit.mappingsDir.file(buildDataInfo.map { it.memberMappings }))
         spigotAtFile.set(extension.craftBukkit.mappingsDir.file(buildDataInfo.map { it.accessTransforms }))
 
-        paramMappingsUrl.set(extension.paramMappingsRepo)
-        decompilerUrl.set(extension.decompileRepo)
-        remapperUrl.set(extension.remapRepo)
-
         paramMappingsConfig.set(project.configurations.named(PARAM_MAPPINGS_CONFIG))
         decompilerConfig.set(project.configurations.named(DECOMPILER_CONFIG))
         remapperConfig.set(project.configurations.named(REMAPPER_CONFIG))
@@ -239,6 +236,10 @@ open class AllTasks(
                         server.version
                     ).joinToString(":")
                 )
+
+                paramMappingsUrl.set(project.repositories.named<MavenArtifactRepository>(PARAM_MAPPINGS_REPO_NAME).get().url.toString())
+                decompilerUrl.set(project.repositories.named<MavenArtifactRepository>(DECOMPILER_REPO_NAME).get().url.toString())
+                remapperUrl.set(project.repositories.named<MavenArtifactRepository>(REMAPPER_REPO_NAME).get().url.toString())
             }
         }
     }

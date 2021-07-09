@@ -93,6 +93,21 @@ class PaperweightPatcher : Plugin<Project> {
         }
 
         target.afterEvaluate {
+            target.repositories {
+                maven(patcher.paramMappingsRepo) {
+                    name = PARAM_MAPPINGS_REPO_NAME
+                    content { onlyForConfigurations(PARAM_MAPPINGS_CONFIG) }
+                }
+                maven(patcher.remapRepo) {
+                    name = REMAPPER_REPO_NAME
+                    content { onlyForConfigurations(REMAPPER_CONFIG) }
+                }
+                maven(patcher.decompileRepo) {
+                    name = DECOMPILER_REPO_NAME
+                    content { onlyForConfigurations(DECOMPILER_CONFIG) }
+                }
+            }
+
             val upstreamDataTask = upstreamDataTaskRef.get() ?: return@afterEvaluate
 
             for (upstream in patcher.upstreams) {

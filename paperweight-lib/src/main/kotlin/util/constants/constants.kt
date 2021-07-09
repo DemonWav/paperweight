@@ -38,6 +38,10 @@ const val PAPERCLIP_CONFIG = "paperclip"
 const val DEV_BUNDLE_CONFIG = "paperweightDevelopmentBundle"
 const val MOJANG_MAPPED_SERVER_CONFIG = "mojangMappedServer"
 
+const val PARAM_MAPPINGS_REPO_NAME = "paperweightParamMappingsRepository"
+const val DECOMPILER_REPO_NAME = "paperweightDecompilerRepository"
+const val REMAPPER_REPO_NAME = "paperweightRemapperRepository"
+
 const val CACHE_PATH = "caches"
 private const val PAPER_PATH = "paperweight"
 
