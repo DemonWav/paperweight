@@ -293,25 +293,20 @@ abstract class GenerateDevBundle : DefaultTask() {
     private fun determineLibraries(vanillaServerLibraries: List<String>): Set<String> {
         val new = arrayListOf<String>()
 
-        sequenceOf(
-            serverProject.get().configurations.named(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME).get(),
-            serverProject.get().configurations.named(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME).get()
-        ).forEach { config ->
-            config.dependencies.forEach { dependency ->
-                // don't want project dependencies
-                if (dependency is ExternalModuleDependency) {
-                    val version = sequenceOf(
-                        dependency.versionConstraint.strictVersion,
-                        dependency.versionConstraint.requiredVersion,
-                        dependency.versionConstraint.preferredVersion,
-                        dependency.version
-                    ).filterNotNull().filter { it.isNotBlank() }.first()
-                    new += sequenceOf(
-                        dependency.group,
-                        dependency.name,
-                        version
-                    ).joinToString(":")
-                }
+        for (dependency in serverProject.get().configurations.named(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME).get().dependencies) {
+            // don't want project dependencies
+            if (dependency is ExternalModuleDependency) {
+                val version = sequenceOf(
+                    dependency.versionConstraint.strictVersion,
+                    dependency.versionConstraint.requiredVersion,
+                    dependency.versionConstraint.preferredVersion,
+                    dependency.version
+                ).filterNotNull().filter { it.isNotBlank() }.first()
+                new += sequenceOf(
+                    dependency.group,
+                    dependency.name,
+                    version
+                ).joinToString(":")
             }
         }
 
