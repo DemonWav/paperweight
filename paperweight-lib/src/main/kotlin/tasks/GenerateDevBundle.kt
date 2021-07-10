@@ -228,12 +228,16 @@ abstract class GenerateDevBundle : DefaultTask() {
     private fun replaceRelocationsInFile(path: Path, relocations: List<RelocationWrapper>) {
         var content = path.readText(Charsets.UTF_8)
 
+        // Use hashes as intermediary to avoid double relocating
+
         for (relocation in relocations) {
-            content = if (relocation.relocation.fromPackage.contains('/') || relocation.relocation.fromPackage.contains('.')) {
-                content.replace(relocation.fromDot, relocation.toDot).replace(relocation.fromSlash, relocation.toSlash)
-            } else {
-                content.replace(relocation.relocation.fromPackage, relocation.toDot)
-            }
+            content = content.replace(relocation.fromDot, '.' + relocation.hashCode().toString())
+                .replace(relocation.fromSlash, '/' + relocation.hashCode().toString())
+        }
+
+        for (relocation in relocations) {
+            content = content.replace('.' + relocation.hashCode().toString(), relocation.toDot)
+                .replace('/' + relocation.hashCode().toString(), relocation.toSlash)
         }
 
         path.writeText(content, Charsets.UTF_8)
