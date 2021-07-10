@@ -22,21 +22,37 @@
 
 package io.papermc.paperweight.userdev.tasks
 
+import io.papermc.paperweight.extension.Relocation
+import io.papermc.paperweight.extension.RelocationWrapper
 import io.papermc.paperweight.tasks.*
 import io.papermc.paperweight.util.*
 import java.nio.file.Path
 import kotlin.io.path.*
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
 
 abstract class FilterPaperJar : FilterJar() {
     @get:InputFile
     abstract val sourcesJar: RegularFileProperty
 
-    override fun run() {
-        val includedFiles = collectIncludes()
+    @get:Input
+    abstract val relocations: Property<String>
 
-        filterJar(includes.get()) { path ->
+    override fun run() {
+        // Include relocated packages
+        val patternIncludes = includes.get().toMutableList()
+        val rel = gson.fromJson<List<Relocation>>(relocations.get()).map { RelocationWrapper(it) }
+        for (relocation in rel) {
+            patternIncludes += '/' + relocation.toSlash + "/**"
+            for (exclude in relocation.relocation.excludes) {
+                patternIncludes += '/' + exclude.replace('.', '/')
+            }
+        }
+
+        val includedFiles = collectIncludes()
+        filterJar(patternIncludes) { path ->
             val str = path.pathString
             if (str.contains('$')) {
                 includedFiles.contains(str.split("$")[0] + ".class")

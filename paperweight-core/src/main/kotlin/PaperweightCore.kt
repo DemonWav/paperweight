@@ -26,6 +26,7 @@ import io.papermc.paperweight.DownloadService
 import io.papermc.paperweight.core.extension.PaperweightCoreExtension
 import io.papermc.paperweight.core.taskcontainers.AllTasks
 import io.papermc.paperweight.core.tasks.PaperweightCoreUpstreamData
+import io.papermc.paperweight.extension.RelocationExtension
 import io.papermc.paperweight.tasks.*
 import io.papermc.paperweight.tasks.patchremap.RemapPatches
 import io.papermc.paperweight.util.*
@@ -112,6 +113,7 @@ class PaperweightCore : Plugin<Project> {
 
             val serverProj = target.ext.serverProject.forUseAtConfigurationTime().orNull ?: return@afterEvaluate
             serverProj.apply(plugin = "com.github.johnrengelman.shadow")
+            serverProj.extensions.create<RelocationExtension>(RELOCATION_EXTENSION, serverProj.objects)
 
             tasks.generateReobfMappings {
                 inputJar.set(serverProj.tasks.named("shadowJar", Jar::class).flatMap { it.archiveFile })

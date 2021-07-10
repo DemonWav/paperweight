@@ -160,7 +160,7 @@ class UserdevTasks(
     val filterPaperJar by tasks.registering<FilterPaperJar> {
         inputJar.set(patchPaperclip.flatMap { it.patchedJar })
         sourcesJar.set(applyDevBundlePatches.flatMap { it.outputZip })
-        includes.set(listOf("/org/bukkit/craftbukkit/**"))
+        relocations.set(devBundleConfig.map { gson.toJson(it.buildData.relocations) })
     }
 
     val setupPaperweightWorkspace by tasks.registering<InstallToIvyRepo> {

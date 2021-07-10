@@ -24,6 +24,7 @@ package io.papermc.paperweight.core.taskcontainers
 
 import io.papermc.paperweight.core.ext
 import io.papermc.paperweight.core.extension.PaperweightCoreExtension
+import io.papermc.paperweight.extension.RelocationExtension
 import io.papermc.paperweight.tasks.*
 import io.papermc.paperweight.util.*
 import io.papermc.paperweight.util.constants.*
@@ -201,6 +202,7 @@ open class AllTasks(
             }
         )
         serverProject.set(extension.serverProject)
+        relocations.set(extension.serverProject.flatMap { proj -> proj.the<RelocationExtension>().relocations.map { gson.toJson(it) } })
 
         buildDataDir.set(extension.craftBukkit.buildDataDir)
         spigotClassMappingsFile.set(extension.craftBukkit.mappingsDir.file(buildDataInfo.map { it.classMappings }))

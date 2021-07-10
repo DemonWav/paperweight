@@ -22,12 +22,16 @@
 
 package io.papermc.paperweight.tasks
 
+import io.papermc.paperweight.extension.Relocation
+import io.papermc.paperweight.extension.RelocationWrapper
 import io.papermc.paperweight.util.*
+import io.papermc.paperweight.util.constants.*
 import java.io.ByteArrayOutputStream
 import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.*
+import org.apache.tools.ant.types.selectors.SelectorUtils
 import org.gradle.api.DefaultTask
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
@@ -79,6 +83,9 @@ abstract class GenerateDevBundle : DefaultTask() {
 
     @get:Input
     abstract val mojangApiCoordinates: Property<String>
+
+    @get:Input
+    abstract val relocations: Property<String>
 
     // Spigot configuration - start
     @get:InputDirectory
@@ -168,9 +175,13 @@ abstract class GenerateDevBundle : DefaultTask() {
     }
 
     private fun generatePatches(output: Path) {
-        val rootSource = sourceDir.path
+        val workingDir = project.layout.cache.resolve(paperTaskOutput("tmpdir"))
+        workingDir.createDirectories()
+        sourceDir.path.copyRecursivelyTo(workingDir)
 
-        Files.walk(rootSource).use { stream ->
+        relocate(relocations(), workingDir)
+
+        Files.walk(workingDir).use { stream ->
             decompiledJar.path.openZip().use { decompJar ->
                 val decompRoot = decompJar.rootDirectories.single()
 
@@ -178,7 +189,7 @@ abstract class GenerateDevBundle : DefaultTask() {
                     if (file.isDirectory()) {
                         continue
                     }
-                    val relativeFile = file.relativeTo(rootSource)
+                    val relativeFile = file.relativeTo(workingDir)
                     val relativeFilePath = relativeFile.invariantSeparatorsPathString
                     val decompFile = decompRoot.resolve(relativeFilePath)
 
@@ -199,7 +210,61 @@ abstract class GenerateDevBundle : DefaultTask() {
                 }
             }
         }
+
+        workingDir.deleteRecursively()
     }
+
+    private fun relocate(relocations: List<Relocation>, workingDir: Path) {
+        val wrappedRelocations = relocations.map { RelocationWrapper(it) }
+
+        Files.walk(workingDir).use { stream ->
+            stream.filter { it.isRegularFile() && it.name.endsWith(".java") }
+                .forEach { path -> replaceRelocationsInFile(path, wrappedRelocations) }
+        }
+
+        relocateFiles(wrappedRelocations, workingDir)
+    }
+
+    private fun replaceRelocationsInFile(path: Path, relocations: List<RelocationWrapper>) {
+        var content = path.readText(Charsets.UTF_8)
+
+        for (relocation in relocations) {
+            content = if (relocation.relocation.fromPackage.contains('/') || relocation.relocation.fromPackage.contains('.')) {
+                content.replace(relocation.fromDot, relocation.toDot).replace(relocation.fromSlash, relocation.toSlash)
+            } else {
+                content.replace(relocation.relocation.fromPackage, relocation.toDot)
+            }
+        }
+
+        path.writeText(content, Charsets.UTF_8)
+    }
+
+    private fun relocateFiles(relocations: List<RelocationWrapper>, workingDir: Path) {
+        Files.walk(workingDir).use { stream ->
+            stream.filter { it.isRegularFile() && it.name.endsWith(".java") }
+                .forEach { path ->
+                    val potential = path.relativeTo(workingDir).pathString
+                    for (relocation in relocations) {
+                        if (potential.startsWith(relocation.fromSlash)) {
+                            if (excluded(relocation.relocation, potential)) {
+                                break
+                            }
+                            val dest = workingDir.resolve(potential.replace(relocation.fromSlash, relocation.toSlash))
+                            dest.parent.createDirectories()
+                            path.moveTo(dest)
+                            break
+                        }
+                    }
+                }
+        }
+    }
+
+    private fun excluded(relocation: Relocation, potential: String): Boolean =
+        relocation.excludes.map {
+            it.replace('.', '/')
+        }.any { exclude ->
+            SelectorUtils.matchPath(exclude, potential, true)
+        }
 
     private fun diffFiles(fileName: String, original: Path, patched: Path): String {
         val dir = createTempDirectory("diff")
@@ -273,6 +338,8 @@ abstract class GenerateDevBundle : DefaultTask() {
         )
     }
 
+    private fun relocations(): List<Relocation> = gson.fromJson(relocations.get())
+
     private fun createBuildDataConfig(targetDir: String): BuildData {
         return BuildData(
             paramMappings = determineMavenDep(paramMappingsUrl, paramMappingsConfig),
@@ -286,7 +353,8 @@ abstract class GenerateDevBundle : DefaultTask() {
             libraryDependencies = determineLibraries(vanillaServerLibraries.get()),
             libraryRepositories = libraryRepositories.get(),
             apiCoordinates = "${apiCoordinates.get()}:${serverProject.get().version}",
-            mojangApiCoordinates = "${mojangApiCoordinates.get()}:${serverProject.get().version}"
+            mojangApiCoordinates = "${mojangApiCoordinates.get()}:${serverProject.get().version}",
+            relocations = relocations()
         )
     }
 
@@ -312,6 +380,11 @@ abstract class GenerateDevBundle : DefaultTask() {
 
         val result = vanillaServerLibraries.toMutableSet()
         result += new
+
+        // Remove relocated libraries
+        val libs = relocations().mapNotNull { it.owningLibraryCoordinates }
+        result.removeIf { coords -> libs.any { coords.startsWith(it) } }
+
         return result
     }
 
@@ -384,7 +457,8 @@ abstract class GenerateDevBundle : DefaultTask() {
         val libraryDependencies: Set<String>,
         val libraryRepositories: List<String>,
         val apiCoordinates: String,
-        val mojangApiCoordinates: String
+        val mojangApiCoordinates: String,
+        val relocations: List<Relocation>
     )
 
     data class SpigotData(val ref: String, val checkoutUrl: String, val classMappingsFile: String, val memberMappingsFile: String, val atFile: String)

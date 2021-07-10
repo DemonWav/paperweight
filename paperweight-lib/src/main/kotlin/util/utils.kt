@@ -43,10 +43,7 @@ import java.util.IdentityHashMap
 import java.util.Optional
 import java.util.concurrent.ThreadLocalRandom
 import kotlin.experimental.and
-import kotlin.io.path.bufferedReader
-import kotlin.io.path.createDirectories
-import kotlin.io.path.exists
-import kotlin.io.path.name
+import kotlin.io.path.*
 import org.cadixdev.lorenz.merge.MergeResult
 import org.cadixdev.lorenz.model.ClassMapping
 import org.cadixdev.lorenz.model.MemberMapping
@@ -72,8 +69,10 @@ class PathJsonConverter : JsonDeserializer<Path?>, JsonSerializer<Path?> {
     }
 }
 
-inline fun <reified T> Gson.fromJson(file: Any): T =
-    file.convertToPath().bufferedReader(Charsets.UTF_8).use { fromJson(it) }
+inline fun <reified T> Gson.fromJson(any: Any): T = when (any) {
+    is String -> fromJson(any)
+    else -> any.convertToPath().bufferedReader(Charsets.UTF_8).use { fromJson(it) }
+}
 
 val ProjectLayout.cache: Path
     get() = projectDirectory.file(".gradle/$CACHE_PATH").path
