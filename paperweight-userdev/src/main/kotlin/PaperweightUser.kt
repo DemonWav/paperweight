@@ -23,6 +23,7 @@
 package io.papermc.paperweight.userdev
 
 import io.papermc.paperweight.DownloadService
+import io.papermc.paperweight.PaperweightException
 import io.papermc.paperweight.tasks.*
 import io.papermc.paperweight.util.*
 import io.papermc.paperweight.util.constants.*
@@ -45,8 +46,6 @@ abstract class PaperweightUser : Plugin<Project> {
     abstract val javaToolchainService: JavaToolchainService
 
     override fun apply(target: Project) {
-        val userdev = target.extensions.create(PAPERWEIGHT_EXTENSION, PaperweightUserExtension::class)
-
         target.gradle.sharedServices.registerIfAbsent("download", DownloadService::class) {}
 
         target.tasks.register<Delete>("cleanCache") {
@@ -58,7 +57,9 @@ abstract class PaperweightUser : Plugin<Project> {
         target.configurations.create(DEV_BUNDLE_CONFIG)
         target.configurations.create(DECOMPILER_CONFIG)
         target.configurations.create(PARAM_MAPPINGS_CONFIG)
-        target.configurations.create(REMAPPER_CONFIG)
+        target.configurations.create(REMAPPER_CONFIG) {
+            isTransitive = false // we use a fat jar for tiny-remapper, so we don't need it's transitive deps (which aren't on the quilt repo)
+        }
         target.configurations.create(MOJANG_MAPPED_SERVER_CONFIG)
         target.configurations.create(MINECRAFT_LIBRARIES_CONFIG) {
             exclude("junit", "junit") // json-simple exposes junit for some reason
@@ -67,6 +68,14 @@ abstract class PaperweightUser : Plugin<Project> {
 
         val userdevConfiguration by lazy { UserdevConfiguration(target, workerExecutor, javaToolchainService) }
         val devBundleConfig by lazy { userdevConfiguration.devBundleConfig }
+
+        val userdev = target.extensions.create(
+            PAPERWEIGHT_EXTENSION,
+            PaperweightUserExtension::class,
+            target,
+            target.provider { userdevConfiguration },
+            target.objects
+        )
 
         val reobfJar by target.tasks.registering<RemapJar> {
             group = "paperweight"
@@ -102,7 +111,20 @@ abstract class PaperweightUser : Plugin<Project> {
                 )
             }
 
+            if (configurations.named(DEV_BUNDLE_CONFIG).get().isEmpty) {
+                throw PaperweightException(
+                    "paperweight requires a development bundle to be added to the 'paperweightDevelopmentBundle' configuration in" +
+                        " order to function. Use the paperweightDevBundle extension function to do this easily."
+                )
+            }
+
             target.repositories {
+                if (userdev.injectPaperRepository.get()) {
+                    maven(PAPER_MAVEN_REPO_URL) {
+                        content { onlyForConfigurations(DEV_BUNDLE_CONFIG) }
+                    }
+                }
+
                 maven(devBundleConfig.buildData.paramMappings.url) {
                     content { onlyForConfigurations(PARAM_MAPPINGS_CONFIG) }
                 }

@@ -22,4 +22,40 @@
 
 package io.papermc.paperweight.userdev
 
-abstract class PaperweightUserExtension
+import org.gradle.api.Project
+import org.gradle.api.file.RegularFile
+import org.gradle.api.model.ObjectFactory
+import org.gradle.api.provider.Property
+import org.gradle.api.provider.Provider
+import org.gradle.kotlin.dsl.*
+
+abstract class PaperweightUserExtension(
+    project: Project,
+    configuration: Provider<UserdevConfiguration>,
+    objects: ObjectFactory
+) {
+    /**
+     * Whether to inject the Paper maven repository for use by the dev bundle configuration.
+     *
+     * True by default to allow easily resolving Paper development bundles.
+     */
+    val injectPaperRepository: Property<Boolean> = objects.property<Boolean>().convention(true)
+
+    /**
+     * Provides a runnable Mojang mapped server jar, extracted from the current dev bundle.
+     */
+    val mojangMappedPaperServerJar: Provider<RegularFile> = objects.fileProperty().value(
+        project.layout.file(
+            configuration.map {
+                it.extractedBundle.resolve(it.devBundleConfig.buildData.mojangMappedPaperclipFile).toFile()
+            }
+        )
+    )
+
+    /**
+     * Provides the Minecraft version of the current dev bundle.
+     */
+    val minecraftVersion: Provider<String> = objects.property<String>().value(
+        configuration.map { it.devBundleConfig.minecraftVersion }
+    )
+}

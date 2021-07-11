@@ -31,6 +31,8 @@ const val MC_LIBRARY_URL = "https://libraries.minecraft.net/"
 
 const val MC_MANIFEST_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json"
 
+const val PAPER_MAVEN_REPO_URL = "https://papermc.io/repo/repository/maven-public/"
+
 const val PARAM_MAPPINGS_CONFIG = "paramMappings"
 const val REMAPPER_CONFIG = "remapper"
 const val DECOMPILER_CONFIG = "decompiler"
