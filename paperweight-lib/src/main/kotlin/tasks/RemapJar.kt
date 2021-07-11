@@ -43,10 +43,10 @@ fun tinyRemapperArgsList(): List<String> {
         "{from}",
         "{to}",
         "{classpath}",
-        "--fixpackageaccess",
-        "--renameinvalidlocals",
+        "--fix-package-access",
+        "--rename-invalid-locals",
         "--threads=1",
-        "--rebuildsourcefilenames"
+        "--rebuild-source-filenames"
     )
 }
 
