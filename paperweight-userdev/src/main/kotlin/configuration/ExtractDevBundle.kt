@@ -20,32 +20,21 @@
  * USA
  */
 
-package io.papermc.paperweight.userdev.tasks
+package io.papermc.paperweight.userdev.configuration
 
+import com.github.salomonbrys.kotson.fromJson
 import io.papermc.paperweight.tasks.*
 import io.papermc.paperweight.util.*
 import java.nio.file.Path
 import kotlin.io.path.*
-import org.gradle.api.file.DirectoryProperty
-import org.gradle.api.file.RegularFileProperty
-import org.gradle.api.tasks.InputFiles
-import org.gradle.api.tasks.OutputDirectory
-import org.gradle.api.tasks.TaskAction
 
-abstract class ExtractDevBundle : BaseTask() {
-    @get:InputFiles
-    abstract val devBundleZip: RegularFileProperty
-
-    @get:OutputDirectory
-    abstract val outputFolder: DirectoryProperty
-
-    @TaskAction
-    private fun run() {
-        extractDevBundle(outputFolder.path, devBundleZip.path)
-    }
-}
-
-fun extractDevBundle(destinationDirectory: Path, devBundle: Path) {
+/**
+ * Returns whether the config changed, and the config
+ */
+fun extractDevBundle(
+    destinationDirectory: Path,
+    devBundle: Path
+): Pair<Boolean, GenerateDevBundle.DevBundleConfig> {
     val hashFile = destinationDirectory.resolve("current.sha256")
     val newDevBundleHash = toHex(devBundle.hashFile(digestSha256()))
 
@@ -53,7 +42,7 @@ fun extractDevBundle(destinationDirectory: Path, devBundle: Path) {
         val currentDevBundleHash = if (hashFile.isRegularFile()) hashFile.readText(Charsets.UTF_8) else ""
 
         if (currentDevBundleHash.isNotBlank() && newDevBundleHash == currentDevBundleHash) {
-            return
+            return false to readDevBundleConfig(destinationDirectory)
         }
         destinationDirectory.deleteRecursively()
     }
@@ -63,4 +52,14 @@ fun extractDevBundle(destinationDirectory: Path, devBundle: Path) {
     devBundle.openZip().use { fs ->
         fs.getPath("/").copyRecursivelyTo(destinationDirectory)
     }
+
+    return true to readDevBundleConfig(destinationDirectory)
+}
+
+fun readDevBundleConfig(extractedDevBundlePath: Path): GenerateDevBundle.DevBundleConfig {
+    val configFile = extractedDevBundlePath.resolve("config.json")
+    val config: GenerateDevBundle.DevBundleConfig = configFile.bufferedReader(Charsets.UTF_8).use { reader ->
+        gson.fromJson(reader)
+    }
+    return config
 }

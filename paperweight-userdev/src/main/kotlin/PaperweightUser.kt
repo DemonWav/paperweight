@@ -23,18 +23,27 @@
 package io.papermc.paperweight.userdev
 
 import io.papermc.paperweight.DownloadService
-import io.papermc.paperweight.userdev.tasks.extractDevBundle
+import io.papermc.paperweight.tasks.*
 import io.papermc.paperweight.util.*
 import io.papermc.paperweight.util.constants.*
+import javax.inject.Inject
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.bundling.AbstractArchiveTask
+import org.gradle.jvm.toolchain.JavaToolchainService
 import org.gradle.kotlin.dsl.*
+import org.gradle.workers.WorkerExecutor
 
-class PaperweightUser : Plugin<Project> {
+abstract class PaperweightUser : Plugin<Project> {
+    @get:Inject
+    abstract val workerExecutor: WorkerExecutor
+
+    @get:Inject
+    abstract val javaToolchainService: JavaToolchainService
+
     override fun apply(target: Project) {
         val userdev = target.extensions.create(PAPERWEIGHT_EXTENSION, PaperweightUserExtension::class)
 
@@ -56,7 +65,19 @@ class PaperweightUser : Plugin<Project> {
         }
         target.configurations.create(PAPER_API_CONFIG)
 
-        val userdevTasks = UserdevTasks(target)
+        val userdevConfiguration by lazy { UserdevConfiguration(target, workerExecutor, javaToolchainService) }
+        val devBundleConfig by lazy { userdevConfiguration.devBundleConfig }
+
+        val reobfJar by target.tasks.registering<RemapJar> {
+            group = "paperweight"
+            description = "Remap the compiled plugin jar to Spigot's obfuscated runtime names."
+            outputJar.convention(project.layout.buildDirectory.file("libs/${project.name}-${project.version}.jar"))
+            mappingsFile.pathProvider(target.provider { userdevConfiguration.extractedBundle.resolve(devBundleConfig.buildData.reobfMappingsFile) })
+            fromNamespace.set(DEOBF_NAMESPACE)
+            toNamespace.set(SPIGOT_NAMESPACE)
+            remapper.from(project.configurations.named(REMAPPER_CONFIG))
+            remapClasspath.from(project.configurations.named(MOJANG_MAPPED_SERVER_CONFIG))
+        }
 
         target.afterEvaluate {
             val jar = project.tasks.named<AbstractArchiveTask>("jar") {
@@ -69,7 +90,7 @@ class PaperweightUser : Plugin<Project> {
             } else {
                 jar
             }
-            userdevTasks.reobfJar {
+            reobfJar {
                 inputJar.set(devJarTask.flatMap { it.archiveFile })
             }
 
@@ -81,22 +102,17 @@ class PaperweightUser : Plugin<Project> {
                 )
             }
 
-            extractDevBundle(
-                target.layout.cache.resolve(paperTaskOutputDir("extractDevBundle")),
-                target.configurations.named(DEV_BUNDLE_CONFIG).map { it.singleFile }.convertToPath()
-            )
-
             target.repositories {
-                maven(userdevTasks.devBundleConfig.map { it.buildData.paramMappings.url }.get()) {
+                maven(devBundleConfig.buildData.paramMappings.url) {
                     content { onlyForConfigurations(PARAM_MAPPINGS_CONFIG) }
                 }
-                maven(userdevTasks.devBundleConfig.map { it.remap.dep.url }.get()) {
+                maven(devBundleConfig.remap.dep.url) {
                     content { onlyForConfigurations(REMAPPER_CONFIG) }
                 }
-                maven(userdevTasks.devBundleConfig.map { it.decompile.dep.url }.get()) {
+                maven(devBundleConfig.decompile.dep.url) {
                     content { onlyForConfigurations(DECOMPILER_CONFIG) }
                 }
-                for (repo in userdevTasks.devBundleConfig.map { it.buildData.libraryRepositories }.get()) {
+                for (repo in devBundleConfig.buildData.libraryRepositories) {
                     maven(repo) {
                         content {
                             onlyForConfigurations(
@@ -110,7 +126,7 @@ class PaperweightUser : Plugin<Project> {
 
                 ivy(layout.cache.resolve(IVY_REPOSITORY)) {
                     content {
-                        val parts = userdevTasks.devBundleConfig.map { it.mappedServerCoordinates.split(":") }.get()
+                        val parts = devBundleConfig.mappedServerCoordinates.split(":")
                         includeModule(parts[0], parts[1])
                     }
                     patternLayout {
@@ -125,24 +141,29 @@ class PaperweightUser : Plugin<Project> {
             }
 
             target.dependencies {
-                for (dep in userdevTasks.devBundleConfig.map { it.decompile.dep.coordinates }.get()) {
+                for (dep in devBundleConfig.decompile.dep.coordinates) {
                     DECOMPILER_CONFIG(dep)
                 }
-                for (dep in userdevTasks.devBundleConfig.map { it.buildData.paramMappings.coordinates }.get()) {
+                for (dep in devBundleConfig.buildData.paramMappings.coordinates) {
                     PARAM_MAPPINGS_CONFIG(dep)
                 }
-                for (dep in userdevTasks.devBundleConfig.map { it.remap.dep.coordinates }.get()) {
+                for (dep in devBundleConfig.remap.dep.coordinates) {
                     REMAPPER_CONFIG(dep)
                 }
 
-                for (lib in userdevTasks.devBundleConfig.map { it.buildData.libraryDependencies }.get()) {
+                for (lib in devBundleConfig.buildData.libraryDependencies) {
                     MINECRAFT_LIBRARIES_CONFIG(lib)
                 }
 
-                PAPER_API_CONFIG(userdevTasks.devBundleConfig.map { it.buildData.apiCoordinates }.get())
-                PAPER_API_CONFIG(userdevTasks.devBundleConfig.map { it.buildData.mojangApiCoordinates }.get())
-                MOJANG_MAPPED_SERVER_CONFIG(userdevTasks.devBundleConfig.map { it.mappedServerCoordinates }.get())
+                PAPER_API_CONFIG(devBundleConfig.buildData.apiCoordinates)
+                PAPER_API_CONFIG(devBundleConfig.buildData.mojangApiCoordinates)
+                MOJANG_MAPPED_SERVER_CONFIG(devBundleConfig.mappedServerCoordinates)
             }
+
+            userdevConfiguration.installServerArtifactToIvyRepository(
+                target.layout.cache,
+                target.layout.cache.resolve(IVY_REPOSITORY)
+            )
         }
     }
 }

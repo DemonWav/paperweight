@@ -25,12 +25,15 @@ package io.papermc.paperweight.tasks
 import io.papermc.paperweight.PaperweightException
 import io.papermc.paperweight.util.*
 import io.papermc.paperweight.util.constants.*
+import java.nio.file.Path
 import kotlin.io.path.*
 import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.FileCollection
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.*
+import org.gradle.jvm.toolchain.JavaLauncher
 
 fun tinyRemapperArgsList(): List<String> {
     return listOf(
@@ -75,6 +78,34 @@ fun createTinyRemapperArgs(
     return result
 }
 
+fun runTinyRemapper(
+    logFile: Path,
+    inputJar: Path,
+    mappingsFile: Path,
+    fromNamespace: String,
+    toNamespace: String,
+    remapClasspath: List<Path>,
+    remapper: FileCollection,
+    outputJar: Path,
+    launcher: JavaLauncher,
+    workingDir: Path,
+    jvmArgs: List<String> = listOf("-Xmx1G")
+) {
+    ensureDeleted(logFile)
+
+    val args = createTinyRemapperArgs(
+        inputJar.absolutePathString(),
+        outputJar.absolutePathString(),
+        mappingsFile.absolutePathString(),
+        fromNamespace,
+        toNamespace,
+        remapClasspath.map { it.absolutePathString() }.toTypedArray()
+    )
+
+    ensureParentExists(logFile)
+    launcher.runJar(remapper, workingDir, logFile, jvmArgs = jvmArgs, args = args.toTypedArray())
+}
+
 @CacheableTask
 abstract class RemapJar : JavaLauncherTask() {
 
@@ -113,18 +144,18 @@ abstract class RemapJar : JavaLauncherTask() {
     @TaskAction
     fun run() {
         val logFile = layout.cache.resolve(paperTaskOutput("log"))
-        ensureDeleted(logFile)
-
-        val args = createTinyRemapperArgs(
-            inputJar.path.absolutePathString(),
-            outputJar.path.absolutePathString(),
-            mappingsFile.path.absolutePathString(),
+        runTinyRemapper(
+            logFile,
+            inputJar.path,
+            mappingsFile.path,
             fromNamespace.get(),
             toNamespace.get(),
-            remapClasspath.asFileTree.map { it.absolutePath }.toTypedArray()
+            remapClasspath.files.map { it.toPath() },
+            remapper,
+            outputJar.path,
+            launcher.get(),
+            layout.cache,
+            jvmargs.get()
         )
-
-        ensureParentExists(logFile)
-        launcher.runJar(remapper, layout.cache, logFile, jvmArgs = jvmargs.get(), args = args.toTypedArray())
     }
 }

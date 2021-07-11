@@ -34,6 +34,7 @@ import org.gradle.api.file.ProjectLayout
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
+import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.*
 import org.gradle.kotlin.dsl.*
 import org.gradle.workers.WorkAction
@@ -81,25 +82,41 @@ abstract class DownloadMcLibraries : DefaultTask() {
 
     @TaskAction
     fun run() {
-        val out = outputDir.path
-        val excludes = listOf(out.fileSystem.getPathMatcher("glob:*.etag"))
-        out.deleteRecursively(excludes)
-        val sourcesOut = sourcesOutputDir.path
-        sourcesOut.deleteRecursively(excludes)
+        downloadMinecraftLibraries(
+            downloader,
+            workerExecutor,
+            outputDir.path,
+            sourcesOutputDir.path,
+            mcRepo.get(),
+            mcLibrariesFile.path
+        )
+    }
+}
 
-        val mcRepos = listOf(mcRepo.get())
+fun downloadMinecraftLibraries(
+    download: Provider<DownloadService>,
+    workerExecutor: WorkerExecutor,
+    out: Path,
+    sourcesOut: Path?,
+    mcRepo: String,
+    mcLibrariesFile: Path
+) {
+    val excludes = listOf(out.fileSystem.getPathMatcher("glob:*.etag"))
+    out.deleteRecursively(excludes)
+    sourcesOut?.deleteRecursively(excludes)
 
-        val queue = workerExecutor.noIsolation()
-        mcLibrariesFile.path.useLines { lines ->
-            lines.forEach { line ->
-                queue.submit(DownloadWorker::class) {
-                    repos.set(mcRepos)
-                    artifact.set(line)
-                    target.set(out)
-                    sourcesTarget.set(sourcesOut)
-                    downloadToDir.set(true)
-                    downloader.set(this@DownloadMcLibraries.downloader)
-                }
+    val mcRepos = listOf(mcRepo)
+
+    val queue = workerExecutor.noIsolation()
+    mcLibrariesFile.useLines { lines ->
+        lines.forEach { line ->
+            queue.submit(DownloadWorker::class) {
+                repos.set(mcRepos)
+                artifact.set(line)
+                target.set(out)
+                sourcesTarget.set(sourcesOut)
+                downloadToDir.set(true)
+                downloader.set(download)
             }
         }
     }

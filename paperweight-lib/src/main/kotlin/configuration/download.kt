@@ -20,40 +20,36 @@
  * USA
  */
 
-package io.papermc.paperweight.tasks
+package io.papermc.paperweight.configuration
 
+import io.papermc.paperweight.DownloadService
 import io.papermc.paperweight.util.*
 import java.nio.file.Path
 import kotlin.io.path.*
-import org.gradle.api.DefaultTask
-import org.gradle.api.file.RegularFileProperty
-import org.gradle.api.provider.ListProperty
-import org.gradle.api.tasks.CacheableTask
-import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.OutputFile
-import org.gradle.api.tasks.TaskAction
+import org.gradle.api.provider.Provider
 
-@CacheableTask
-abstract class SetupMcLibraries : DefaultTask() {
-
-    @get:Input
-    abstract val dependencies: ListProperty<String>
-
-    @get:OutputFile
-    abstract val outputFile: RegularFileProperty
-
-    @TaskAction
-    fun run() {
-        setupMinecraftLibraries(dependencies.get(), outputFile.path)
+/**
+ * Downloads a file if the hash no longer matches what was recorded on last download, or if the [forceUpdate] flag is set
+ */
+fun download(
+    downloadName: String,
+    download: Provider<DownloadService>,
+    forceUpdate: Boolean,
+    serverUrl: Any,
+    destination: Path
+): Path {
+    val upToDate = !forceUpdate && destination.hasCorrect256()
+    if (upToDate) {
+        return destination
     }
-}
+    println(":downloading $downloadName")
 
-fun setupMinecraftLibraries(dependencies: List<String>, outputFile: Path) {
-    val list = dependencies.sorted()
+    destination.parent.createDirectories()
+    download.get().download(
+        serverUrl,
+        destination
+    )
+    destination.writeSha256()
 
-    outputFile.bufferedWriter().use { writer ->
-        for (line in list) {
-            writer.appendLine(line)
-        }
-    }
+    return destination
 }

@@ -52,9 +52,14 @@ import org.gradle.api.Task
 import org.gradle.api.file.FileSystemLocation
 import org.gradle.api.file.ProjectLayout
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.TaskContainer
 import org.gradle.api.tasks.TaskProvider
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JavaLauncher
+import org.gradle.jvm.toolchain.JavaToolchainService
+import org.gradle.jvm.toolchain.JvmVendorSpec
 import org.gradle.kotlin.dsl.*
 
 val gson: Gson = GsonBuilder().disableHtmlEscaping().setPrettyPrinting().registerTypeHierarchyAdapter(Path::class.java, PathJsonConverter()).create()
@@ -256,4 +261,15 @@ fun toHex(hash: ByteArray): String {
         sb.append("%02X".format(aHash and 0xFF.toByte()))
     }
     return sb.toString()
+}
+
+fun JavaToolchainService.defaultJavaLauncher(project: Project): Provider<JavaLauncher> {
+    return launcherFor(project.extensions.getByType<JavaPluginExtension>().toolchain)
+        .orElse(
+            launcherFor {
+                // If the java plugin isn't applied, or no toolchain value was set
+                languageVersion.set(JavaLanguageVersion.of(16))
+                vendor.set(JvmVendorSpec.ADOPTOPENJDK)
+            }
+        )
 }

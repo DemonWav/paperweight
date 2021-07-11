@@ -153,3 +153,20 @@ fun Path.hashFile(digest: MessageDigest): ByteArray = inputStream().use { iS ->
     }
     digestStream.messageDigest.digest()
 }
+
+fun Path.sha256asHex(): String = toHex(hashFile(digestSha256()))
+
+private fun hashFile(file: Path): Path {
+    val sha256 = file.resolveSibling("sha256")
+    sha256.createDirectories()
+    return sha256.resolve("${file.name}.sha256")
+}
+
+fun Path.hasCorrect256(): Boolean {
+    val hashFile = hashFile(this)
+    return isRegularFile() &&
+        hashFile.isRegularFile() &&
+        hashFile.readText(Charsets.UTF_8) == sha256asHex()
+}
+
+fun Path.writeSha256() = hashFile(this).writeText(sha256asHex(), Charsets.UTF_8)

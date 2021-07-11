@@ -24,8 +24,10 @@ package io.papermc.paperweight.tasks
 
 import io.papermc.paperweight.util.*
 import io.papermc.paperweight.util.constants.*
+import java.nio.file.Path
 import kotlin.io.path.*
 import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.FileCollection
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.tasks.CacheableTask
@@ -34,6 +36,7 @@ import org.gradle.api.tasks.CompileClasspath
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
+import org.gradle.jvm.toolchain.JavaLauncher
 
 fun forgeFlowerArgList(): List<String> {
     return listOf(
@@ -66,6 +69,53 @@ fun createForgeFlowerArgs(libraries: String, input: String, output: String): Lis
     }
 }
 
+fun runForgeFlower(
+    logFile: Path,
+    workingDir: Path,
+    executable: FileCollection,
+    inputJar: Path,
+    libraries: List<Path>,
+    outputJar: Path,
+    javaLauncher: JavaLauncher,
+    jvmArgs: List<String> = listOf("-Xmx4G")
+) {
+    val target = outputJar.resolveSibling("${outputJar.name}.dir")
+    if (target.exists()) {
+        target.deleteRecursively()
+    }
+    target.createDirectories()
+
+    val libs = ArrayList(libraries)
+    libs.sort()
+    val tempFile = createTempFile("paperweight", "txt")
+
+    try {
+        tempFile.bufferedWriter().use { writer ->
+            for (lib in libs) {
+                if (lib.isLibraryJar) {
+                    writer.appendLine("-e=${lib.absolutePathString()}")
+                }
+            }
+        }
+
+        val argList = createForgeFlowerArgs(
+            tempFile.absolutePathString(),
+            inputJar.absolutePathString(),
+            target.absolutePathString()
+        )
+
+        logFile.deleteForcefully()
+
+        javaLauncher.runJar(executable, workingDir, logFile, jvmArgs = jvmArgs, args = argList.toTypedArray())
+
+        // FernFlower is weird with how it does directory output
+        target.resolve(inputJar.name).moveTo(outputJar, overwrite = true)
+        target.deleteRecursively()
+    } finally {
+        tempFile.deleteForcefully()
+    }
+}
+
 @CacheableTask
 abstract class RunForgeFlower : JavaLauncherTask() {
 
@@ -93,42 +143,15 @@ abstract class RunForgeFlower : JavaLauncherTask() {
 
     @TaskAction
     fun run() {
-        val out = outputJar.path
-        val target = out.resolveSibling("${out.name}.dir")
-        if (target.exists()) {
-            target.deleteRecursively()
-        }
-        target.createDirectories()
-
-        val libs = libraries.files.mapTo(ArrayList()) { it.toPath() }
-        libs.sort()
-        val tempFile = createTempFile("paperweight", "txt")
-
-        try {
-            tempFile.bufferedWriter().use { writer ->
-                for (lib in libs) {
-                    if (lib.isLibraryJar) {
-                        writer.appendLine("-e=${lib.absolutePathString()}")
-                    }
-                }
-            }
-
-            val argList = createForgeFlowerArgs(
-                tempFile.absolutePathString(),
-                inputJar.path.absolutePathString(),
-                target.absolutePathString()
-            )
-
-            val logFile = layout.cache.resolve(paperTaskOutput("log"))
-            logFile.deleteForcefully()
-
-            launcher.runJar(executable, layout.cache, logFile, jvmArgs = jvmargs.get(), args = argList.toTypedArray())
-
-            // FernFlower is weird with how it does directory output
-            target.resolve(inputJar.path.name).moveTo(out, overwrite = true)
-            target.deleteRecursively()
-        } finally {
-            tempFile.deleteForcefully()
-        }
+        runForgeFlower(
+            layout.cache.resolve(paperTaskOutput("log")),
+            layout.cache,
+            executable,
+            inputJar.path,
+            libraries.files.map { it.toPath() },
+            outputJar.path,
+            launcher.get(),
+            jvmargs.get()
+        )
     }
 }

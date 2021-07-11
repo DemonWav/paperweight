@@ -20,44 +20,41 @@
  * USA
  */
 
-package io.papermc.paperweight.userdev.tasks
+package io.papermc.paperweight.userdev.configuration
 
-import io.papermc.paperweight.tasks.ZippedTask
-import io.papermc.paperweight.util.Git
-import io.papermc.paperweight.util.path
+import io.papermc.paperweight.util.*
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlin.io.path.absolutePathString
-import kotlin.io.path.copyTo
-import kotlin.io.path.createDirectories
-import kotlin.io.path.isRegularFile
-import kotlin.io.path.name
-import kotlin.io.path.relativeTo
-import org.gradle.api.file.DirectoryProperty
-import org.gradle.api.tasks.InputDirectory
+import kotlin.io.path.*
 
-abstract class ApplyDevBundlePatches : ZippedTask() {
-    @get:InputDirectory
-    abstract val devBundlePatches: DirectoryProperty
+fun applyDevBundlePatches(
+    decompiledJar: Path,
+    devBundlePatches: Path,
+    outputJar: Path
+) {
+    Git.checkForGit()
 
-    override fun run(rootDir: Path) {
-        Git.checkForGit()
-        applyDevBundlePatches(rootDir)
-    }
+    val workDir = findOutputDir(outputJar)
 
-    private fun applyDevBundlePatches(rootDir: Path) {
-        val git = Git(rootDir)
+    try {
+        unzip(decompiledJar, workDir)
+        val git = Git(workDir)
 
-        Files.walk(devBundlePatches.path).use { stream ->
+        Files.walk(devBundlePatches).use { stream ->
             stream.forEach {
                 if (it.name.endsWith(".patch")) {
                     git("apply", it.absolutePathString()).executeOut()
                 } else if (it.isRegularFile()) {
-                    val destination = rootDir.resolve(it.relativeTo(devBundlePatches.path))
+                    val destination = workDir.resolve(it.relativeTo(devBundlePatches))
                     destination.parent.createDirectories()
                     it.copyTo(destination, overwrite = true)
                 }
             }
         }
+
+        ensureDeleted(outputJar)
+        zip(workDir, outputJar)
+    } finally {
+        workDir.deleteRecursively()
     }
 }
