@@ -273,13 +273,18 @@ class UserdevConfiguration(
     }
 
     val filteredMojangMappedPaperJar: Path by lazy {
-        val input = mojangMappedPaperJar // init lazy value
+        // init lazy values
+        val input = mojangMappedPaperJar
+        val sources = patchedSourcesJar
+
         val output = cache.resolve(paperConfigurationOutput("filteredPaperServerJar", "jar"))
 
         if (!devBundleChanged && output.hasCorrect256()) {
             return@lazy output
         }
-        filterPaperJar(patchedSourcesJar, input, output, devBundleConfig.buildData.relocations)
+
+        println(":filtering mojang mapped paper jar")
+        filterPaperJar(sources, input, output, devBundleConfig.buildData.relocations)
         output.writeSha256()
         output
     }
