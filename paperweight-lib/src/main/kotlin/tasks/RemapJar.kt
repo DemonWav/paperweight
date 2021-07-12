@@ -35,22 +35,20 @@ import org.gradle.api.provider.Property
 import org.gradle.api.tasks.*
 import org.gradle.jvm.toolchain.JavaLauncher
 
-fun tinyRemapperArgsList(): List<String> {
-    return listOf(
-        "{input}",
-        "{output}",
-        "{mappings}",
-        "{from}",
-        "{to}",
-        "{classpath}",
-        "--fix-package-access",
-        "--rename-invalid-locals",
-        "--threads=1",
-        "--rebuild-source-filenames"
-    )
-}
+val tinyRemapperArgsList: List<String> = listOf(
+    "{input}",
+    "{output}",
+    "{mappings}",
+    "{from}",
+    "{to}",
+    "{classpath}",
+    "--fix-package-access",
+    "--rename-invalid-locals",
+    "--threads=1",
+    "--rebuild-source-filenames"
+)
 
-fun createTinyRemapperArgs(
+private fun List<String>.createTinyRemapperArgs(
     input: String,
     output: String,
     mappings: String,
@@ -59,7 +57,7 @@ fun createTinyRemapperArgs(
     classpath: Array<String>
 ): List<String> {
     val result = mutableListOf<String>()
-    for (arg in tinyRemapperArgsList()) {
+    for (arg in this) {
         val mapped = when (arg) {
             "{input}" -> input
             "{output}" -> output
@@ -79,6 +77,7 @@ fun createTinyRemapperArgs(
 }
 
 fun runTinyRemapper(
+    argsList: List<String>,
     logFile: Path,
     inputJar: Path,
     mappingsFile: Path,
@@ -93,7 +92,7 @@ fun runTinyRemapper(
 ) {
     ensureDeleted(logFile)
 
-    val args = createTinyRemapperArgs(
+    val args = argsList.createTinyRemapperArgs(
         inputJar.absolutePathString(),
         outputJar.absolutePathString(),
         mappingsFile.absolutePathString(),
@@ -145,6 +144,7 @@ abstract class RemapJar : JavaLauncherTask() {
     fun run() {
         val logFile = layout.cache.resolve(paperTaskOutput("log"))
         runTinyRemapper(
+            tinyRemapperArgsList,
             logFile,
             inputJar.path,
             mappingsFile.path,

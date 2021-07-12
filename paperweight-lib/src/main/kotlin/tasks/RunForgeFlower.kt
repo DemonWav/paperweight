@@ -38,38 +38,39 @@ import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 import org.gradle.jvm.toolchain.JavaLauncher
 
-fun forgeFlowerArgList(): List<String> {
-    return listOf(
-        "-ind=    ",
-        "-din=1",
-        "-rbr=1",
-        "-dgs=1",
-        "-asc=1",
-        "-rsy=1",
-        "-iec=1",
-        "-jvn=0",
-        "-isl=0",
-        "-iib=1",
-        "-log=TRACE",
-        "-cfg",
-        "{libraries}",
-        "{input}",
-        "{output}"
-    )
-}
+val forgeFlowerArgList: List<String> = listOf(
+    "-ind=    ",
+    "-din=1",
+    "-rbr=1",
+    "-dgs=1",
+    "-asc=1",
+    "-rsy=1",
+    "-iec=1",
+    "-jvn=0",
+    "-isl=0",
+    "-iib=1",
+    "-log=TRACE",
+    "-cfg",
+    "{libraries}",
+    "{input}",
+    "{output}"
+)
 
-fun createForgeFlowerArgs(libraries: String, input: String, output: String): List<String> {
-    return forgeFlowerArgList().map {
-        when (it) {
-            "{libraries}" -> libraries
-            "{input}" -> input
-            "{output}" -> output
-            else -> it
-        }
+private fun List<String>.createForgeFlowerArgs(
+    libraries: String,
+    input: String,
+    output: String
+): List<String> = map {
+    when (it) {
+        "{libraries}" -> libraries
+        "{input}" -> input
+        "{output}" -> output
+        else -> it
     }
 }
 
 fun runForgeFlower(
+    argsList: List<String>,
     logFile: Path,
     workingDir: Path,
     executable: FileCollection,
@@ -98,7 +99,7 @@ fun runForgeFlower(
             }
         }
 
-        val argList = createForgeFlowerArgs(
+        val argList = argsList.createForgeFlowerArgs(
             tempFile.absolutePathString(),
             inputJar.absolutePathString(),
             target.absolutePathString()
@@ -144,6 +145,7 @@ abstract class RunForgeFlower : JavaLauncherTask() {
     @TaskAction
     fun run() {
         runForgeFlower(
+            forgeFlowerArgList,
             layout.cache.resolve(paperTaskOutput("log")),
             layout.cache,
             executable,

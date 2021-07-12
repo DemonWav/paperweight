@@ -415,14 +415,14 @@ abstract class GenerateDevBundle : DefaultTask() {
     private fun createDecompileRunner(): Runner {
         return Runner(
             dep = determineMavenDep(decompilerUrl, decompilerConfig),
-            args = forgeFlowerArgList()
+            args = forgeFlowerArgList
         )
     }
 
     private fun createRemapRunner(): Runner {
         return Runner(
             dep = determineMavenDep(remapperUrl, remapperConfig),
-            args = tinyRemapperArgsList()
+            args = tinyRemapperArgsList
         )
     }
 

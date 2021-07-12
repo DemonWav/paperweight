@@ -190,6 +190,7 @@ class UserdevConfiguration(
 
         project.logger.lifecycle(":remapping minecraft server jar")
         runTinyRemapper(
+            argsList = devBundleConfig.remap.args,
             logFile = logFile,
             inputJar = filteredVanillaServerJar,
             mappingsFile = mappings,
@@ -218,6 +219,7 @@ class UserdevConfiguration(
 
         project.logger.lifecycle(":decompiling mapped minecraft server jar")
         runForgeFlower(
+            argsList = devBundleConfig.decompile.args,
             logFile = logFile,
             workingDir = cache,
             executable = project.configurations.named(DECOMPILER_CONFIG).get(),
