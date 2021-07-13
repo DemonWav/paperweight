@@ -36,6 +36,7 @@ import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.bundling.AbstractArchiveTask
 import org.gradle.jvm.toolchain.JavaToolchainService
 import org.gradle.kotlin.dsl.*
+import org.gradle.util.internal.NameMatcher
 import org.gradle.workers.WorkerExecutor
 
 abstract class PaperweightUser : Plugin<Project> {
@@ -48,7 +49,7 @@ abstract class PaperweightUser : Plugin<Project> {
     override fun apply(target: Project) {
         target.gradle.sharedServices.registerIfAbsent("download", DownloadService::class) {}
 
-        target.tasks.register<Delete>("cleanCache") {
+        val cleanCache by target.tasks.registering<Delete> {
             group = "paperweight"
             description = "Delete the project setup cache and task outputs."
             delete(target.layout.cache)
@@ -87,6 +88,18 @@ abstract class PaperweightUser : Plugin<Project> {
             remapper.from(project.configurations.named(REMAPPER_CONFIG))
             remapClasspath.from(project.configurations.named(MOJANG_MAPPED_SERVER_CONFIG))
         }
+
+        // Manually check if cleanCache is a target, and skip setup.
+        // Gradle moved NameMatcher to internal packages in 7.1, so this solution isn't ideal,
+        // but it does work and allows using the cleanCache task without setting up the workspace first
+        val cleaningCache = target.gradle.startParameter.taskRequests
+            .map {
+                it.args.any { arg ->
+                    NameMatcher().find(arg, target.tasks.names) == cleanCache.name
+                }
+            }
+            .any { it }
+        if (cleaningCache) return
 
         target.afterEvaluate {
             val jar = project.tasks.named<AbstractArchiveTask>("jar") {
