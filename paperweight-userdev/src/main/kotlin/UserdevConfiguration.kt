@@ -55,28 +55,6 @@ class UserdevConfiguration(
     private val devBundleChanged = extractDevBundle.first
     val devBundleConfig = extractDevBundle.second
 
-    val vanillaServerJar = download(
-        "vanilla minecraft server jar",
-        project.download,
-        devBundleChanged,
-        devBundleConfig.buildData.serverUrl,
-        cache.resolve(paperConfigurationOutput("downloadServerJar", "jar"))
-    )
-
-    val filteredVanillaServerJar: Path = run {
-        val filteredJar = cache.resolve(paperConfigurationOutput("filterJar", "jar"))
-        if (devBundleChanged || !filteredJar.hasCorrect256()) {
-            project.logger.lifecycle(":filtering vanilla server jar")
-            filterJar(
-                vanillaServerJar,
-                filteredJar,
-                devBundleConfig.buildData.vanillaJarIncludes
-            )
-            filteredJar.writeSha256()
-        }
-        filteredJar
-    }
-
     private val minecraftManifestJson = download(
         "minecraft manifest",
         project.download,
@@ -94,6 +72,28 @@ class UserdevConfiguration(
         cache.resolve(VERSION_JSON)
     )
     val minecraftVersionManifest = gson.fromJson<JsonObject>(minecraftVersionManifestJson)
+
+    val vanillaServerJar = download(
+        "vanilla minecraft server jar",
+        project.download,
+        devBundleChanged,
+        minecraftVersionManifest["downloads"]["server"]["url"].string,
+        cache.resolve(paperConfigurationOutput("downloadServerJar", "jar"))
+    )
+
+    val filteredVanillaServerJar: Path = run {
+        val filteredJar = cache.resolve(paperConfigurationOutput("filterJar", "jar"))
+        if (devBundleChanged || !filteredJar.hasCorrect256()) {
+            project.logger.lifecycle(":filtering vanilla server jar")
+            filterJar(
+                vanillaServerJar,
+                filteredJar,
+                devBundleConfig.buildData.vanillaJarIncludes
+            )
+            filteredJar.writeSha256()
+        }
+        filteredJar
+    }
 
     val mojangServerMappings = download(
         "mojang server mappings",

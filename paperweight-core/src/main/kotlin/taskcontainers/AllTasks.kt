@@ -191,9 +191,8 @@ open class AllTasks(
         // dependsOn(applyPatches)
 
         decompiledJar.set(decompileRemapJar.flatMap { it.outputJar })
-        sourceDir.set(extension.paper.paperServerDir.map { it.dir("src/main/java") }.get())
+        sourceDir.set(extension.paper.paperServerDir.path.resolve("src/main/java"))
         minecraftVersion.set(extension.minecraftVersion)
-        serverUrl.set(buildDataInfo.map { it.serverUrl })
         mojangMappedPaperclipFile.set(mojangMappedPaperclipJar.flatMap { it.archiveFile })
         vanillaJarIncludes.set(extension.vanillaJarIncludes)
         vanillaServerLibraries.set(
@@ -203,22 +202,13 @@ open class AllTasks(
         )
         serverProject.set(extension.serverProject)
         relocations.set(extension.serverProject.flatMap { proj -> proj.the<RelocationExtension>().relocations.map { gson.toJson(it) } })
-
-        buildDataDir.set(extension.craftBukkit.buildDataDir)
-        spigotClassMappingsFile.set(extension.craftBukkit.mappingsDir.file(buildDataInfo.map { it.classMappings }))
-        spigotMemberMappingsFile.set(extension.craftBukkit.mappingsDir.file(buildDataInfo.map { it.memberMappings }))
-        spigotAtFile.set(extension.craftBukkit.mappingsDir.file(buildDataInfo.map { it.accessTransforms }))
+        reobfMappingsFile.set(patchReobfMappings.flatMap { it.outputMappings })
 
         paramMappingsConfig.set(project.configurations.named(PARAM_MAPPINGS_CONFIG))
         decompilerConfig.set(project.configurations.named(DECOMPILER_CONFIG))
         remapperConfig.set(project.configurations.named(REMAPPER_CONFIG))
 
-        additionalSpigotClassMappingsFile.set(extension.paper.additionalSpigotClassMappings)
-        additionalSpigotMemberMappingsFile.set(extension.paper.additionalSpigotMemberMappings)
-        mappingsPatchFile.set(extension.paper.mappingsPatch)
-        reobfMappingsFile.set(patchReobfMappings.flatMap { it.outputMappings })
-
-        devBundleFile.set(project.layout.buildDirectory.map { it.file("libs/paperDevBundle-${project.version}.zip") })
+        devBundleFile.set(project.layout.buildDirectory.file("libs/paperweight-development-bundle-${project.version}.zip"))
     }
 
     init {

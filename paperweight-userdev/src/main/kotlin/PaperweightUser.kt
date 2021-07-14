@@ -190,8 +190,8 @@ abstract class PaperweightUser : Plugin<Project> {
                     MINECRAFT_LIBRARIES_CONFIG(lib)
                 }
 
-                PAPER_API_CONFIG(devBundleConfig.buildData.apiCoordinates)
-                PAPER_API_CONFIG(devBundleConfig.buildData.mojangApiCoordinates)
+                PAPER_API_CONFIG(devBundleConfig.apiCoordinates)
+                PAPER_API_CONFIG(devBundleConfig.mojangApiCoordinates)
                 MOJANG_MAPPED_SERVER_CONFIG(devBundleConfig.mappedServerCoordinates)
             }
 

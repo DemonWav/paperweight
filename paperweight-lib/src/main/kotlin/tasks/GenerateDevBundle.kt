@@ -38,7 +38,6 @@ import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.ExternalModuleDependency
 import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.file.DirectoryProperty
-import org.gradle.api.file.FileSystemLocationProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.provider.ListProperty
@@ -56,9 +55,6 @@ abstract class GenerateDevBundle : DefaultTask() {
 
     @get:Input
     abstract val minecraftVersion: Property<String>
-
-    @get:Input
-    abstract val serverUrl: Property<String>
 
     @get:InputFile
     abstract val mojangMappedPaperclipFile: RegularFileProperty
@@ -87,21 +83,6 @@ abstract class GenerateDevBundle : DefaultTask() {
     @get:Input
     abstract val relocations: Property<String>
 
-    // Spigot configuration - start
-    @get:InputDirectory
-    abstract val buildDataDir: DirectoryProperty
-
-    @get:InputFile
-    abstract val spigotClassMappingsFile: RegularFileProperty
-
-    @get:InputFile
-    abstract val spigotMemberMappingsFile: RegularFileProperty
-
-    @get:InputFile
-    abstract val spigotAtFile: RegularFileProperty
-    // Spigot configuration - end
-
-    // Paper configuration - start
     @get:Input
     abstract val paramMappingsUrl: Property<String>
 
@@ -120,21 +101,8 @@ abstract class GenerateDevBundle : DefaultTask() {
     @get:Classpath
     abstract val remapperConfig: Property<Configuration>
 
-    @get:Optional
-    @get:InputFile
-    abstract val additionalSpigotClassMappingsFile: RegularFileProperty
-
-    @get:Optional
-    @get:InputFile
-    abstract val additionalSpigotMemberMappingsFile: RegularFileProperty
-
-    @get:Optional
-    @get:InputFile
-    abstract val mappingsPatchFile: RegularFileProperty
-
     @get:InputFile
     abstract val reobfMappingsFile: RegularFileProperty
-    // Paper configuration - end
 
     @get:OutputFile
     abstract val devBundleFile: RegularFileProperty
@@ -160,9 +128,6 @@ abstract class GenerateDevBundle : DefaultTask() {
 
                 val dataZip = zip.getPath(dataDir)
                 dataZip.createDirectories()
-                additionalSpigotClassMappingsFile.pathIfExists?.copyTo(dataZip.resolve(additionalSpigotClassMappingsFileName))
-                additionalSpigotMemberMappingsFile.pathIfExists?.copyTo(dataZip.resolve(additionalSpigotMemberMappingsFileName))
-                mappingsPatchFile.pathIfExists?.copyTo(dataZip.resolve(mappingsPatchFileName))
                 reobfMappingsFile.path.copyTo(dataZip.resolve(reobfMappingsFileName))
                 mojangMappedPaperclipFile.path.copyTo(dataZip.resolve(mojangMappedPaperclipFileName))
 
@@ -313,32 +278,13 @@ abstract class GenerateDevBundle : DefaultTask() {
     private fun createBundleConfig(dataTargetDir: String, patchTargetDir: String): DevBundleConfig {
         return DevBundleConfig(
             minecraftVersion = minecraftVersion.get(),
-            spigotData = createSpigotConfig(),
+            mappedServerCoordinates = mappedServerCoordinates.get(),
+            apiCoordinates = "${apiCoordinates.get()}:${serverProject.get().version}",
+            mojangApiCoordinates = "${mojangApiCoordinates.get()}:${serverProject.get().version}",
             buildData = createBuildDataConfig(dataTargetDir),
             decompile = createDecompileRunner(),
             remap = createRemapRunner(),
-            patchDir = patchTargetDir,
-            mappedServerCoordinates = mappedServerCoordinates.get()
-        )
-    }
-
-    private fun createSpigotConfig(): SpigotData {
-        val dir = buildDataDir.path
-
-        val git = Git(dir)
-        val remoteUrl = git("remote", "get-url", "origin").getText().trim()
-        val commitRef = git("rev-parse", "HEAD").getText().trim()
-
-        val classMappings = spigotClassMappingsFile.path.relativeTo(dir).toString()
-        val memberMappings = spigotMemberMappingsFile.path.relativeTo(dir).toString()
-        val at = spigotAtFile.path.relativeTo(dir).toString()
-
-        return SpigotData(
-            ref = commitRef,
-            checkoutUrl = remoteUrl,
-            classMappingsFile = classMappings,
-            memberMappingsFile = memberMappings,
-            atFile = at
+            patchDir = patchTargetDir
         )
     }
 
@@ -347,17 +293,11 @@ abstract class GenerateDevBundle : DefaultTask() {
     private fun createBuildDataConfig(targetDir: String): BuildData {
         return BuildData(
             paramMappings = determineMavenDep(paramMappingsUrl, paramMappingsConfig),
-            additionalSpigotClassMappingsFile = additionalSpigotClassMappingsFile.ifExists("$targetDir/$additionalSpigotClassMappingsFileName"),
-            additionalSpigotMemberMappingsFile = additionalSpigotMemberMappingsFile.ifExists("$targetDir/$additionalSpigotMemberMappingsFileName"),
-            mappingsPatchFile = mappingsPatchFile.ifExists("$targetDir/$mappingsPatchFileName"),
             reobfMappingsFile = "$targetDir/$reobfMappingsFileName",
-            serverUrl = serverUrl.get(),
             mojangMappedPaperclipFile = "$targetDir/$mojangMappedPaperclipFileName",
             vanillaJarIncludes = vanillaJarIncludes.get(),
             libraryDependencies = determineLibraries(vanillaServerLibraries.get()),
             libraryRepositories = libraryRepositories.get(),
-            apiCoordinates = "${apiCoordinates.get()}:${serverProject.get().version}",
-            mojangApiCoordinates = "${mojangApiCoordinates.get()}:${serverProject.get().version}",
             relocations = relocations()
         )
     }
@@ -426,23 +366,11 @@ abstract class GenerateDevBundle : DefaultTask() {
         )
     }
 
-    private fun FileSystemLocationProperty<*>.ifExists(text: String): String? {
-        if (!this.isPresent) {
-            return null
-        }
-        if (this.path.notExists()) {
-            return null
-        }
-        return text
-    }
-
-    private val FileSystemLocationProperty<*>.pathIfExists: Path?
-        get() = pathOrNull?.takeIf { it.exists() }
-
     data class DevBundleConfig(
         val minecraftVersion: String,
         val mappedServerCoordinates: String,
-        val spigotData: SpigotData,
+        val apiCoordinates: String,
+        val mojangApiCoordinates: String,
         val buildData: BuildData,
         val decompile: Runner,
         val remap: Runner,
@@ -451,29 +379,19 @@ abstract class GenerateDevBundle : DefaultTask() {
 
     data class BuildData(
         val paramMappings: MavenDep,
-        val additionalSpigotClassMappingsFile: String?,
-        val additionalSpigotMemberMappingsFile: String?,
-        val mappingsPatchFile: String?,
         val reobfMappingsFile: String,
-        val serverUrl: String,
         val mojangMappedPaperclipFile: String,
         val vanillaJarIncludes: List<String>,
         val libraryDependencies: Set<String>,
         val libraryRepositories: List<String>,
-        val apiCoordinates: String,
-        val mojangApiCoordinates: String,
         val relocations: List<Relocation>
     )
 
-    data class SpigotData(val ref: String, val checkoutUrl: String, val classMappingsFile: String, val memberMappingsFile: String, val atFile: String)
     data class MavenDep(val url: String, val coordinates: List<String>)
     data class Runner(val dep: MavenDep, val args: List<String>)
 
     companion object {
-        const val additionalSpigotClassMappingsFileName = "additional-spigot-class-mappings.csrg"
-        const val additionalSpigotMemberMappingsFileName = "additional-spigot-member-mappings.csrg"
-        const val mappingsPatchFileName = "mappings-patch.tiny"
-        const val reobfMappingsFileName = "mojang+yarn-spigot-reobf-patched.tiny"
-        const val mojangMappedPaperclipFileName = "paperclip-mojang-mapped.jar"
+        const val reobfMappingsFileName = "$DEOBF_NAMESPACE-$SPIGOT_NAMESPACE-reobf.tiny"
+        const val mojangMappedPaperclipFileName = "paperclip-$DEOBF_NAMESPACE.jar"
     }
 }
