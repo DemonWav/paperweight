@@ -23,7 +23,6 @@
 package io.papermc.paperweight.core.taskcontainers
 
 import com.github.salomonbrys.kotson.fromJson
-import io.papermc.paperweight.DownloadService
 import io.papermc.paperweight.core.ext
 import io.papermc.paperweight.core.extension.PaperweightCoreExtension
 import io.papermc.paperweight.tasks.*
@@ -38,7 +37,6 @@ open class GeneralTasks(
     project: Project,
     tasks: TaskContainer = project.tasks,
     extension: PaperweightCoreExtension = project.ext,
-    downloadService: Provider<DownloadService> = project.download,
 ) : InitialTasks(project) {
 
     // Configuration won't necessarily always run, so do it as the first task when it's needed as well
@@ -46,13 +44,6 @@ open class GeneralTasks(
 
     val buildDataInfo: Provider<BuildDataInfo> = project.contents(extension.craftBukkit.buildDataInfo) {
         gson.fromJson(it)
-    }
-
-    val downloadServerJar by tasks.registering<DownloadServerJar> {
-        dependsOn(initSubmodules)
-        downloadUrl.set(buildDataInfo.map { it.serverUrl })
-
-        downloader.set(downloadService)
     }
 
     val filterVanillaJar by tasks.registering<FilterJar> {

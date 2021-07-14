@@ -90,4 +90,14 @@ open class InitialTasks(
 
         downloader.set(downloadService)
     }
+
+    val downloadServerJar by tasks.registering<DownloadServerJar> {
+        downloadUrl.set(
+            versionManifest.map { version ->
+                version["downloads"]["server"]["url"].string
+            }
+        )
+
+        downloader.set(downloadService)
+    }
 }
