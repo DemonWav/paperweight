@@ -81,12 +81,16 @@ abstract class PaperweightUser : Plugin<Project> {
         val reobfJar by target.tasks.registering<RemapJar> {
             group = "paperweight"
             description = "Remap the compiled plugin jar to Spigot's obfuscated runtime names."
+
             outputJar.convention(project.layout.buildDirectory.file("libs/${project.name}-${project.version}.jar"))
+
             mappingsFile.pathProvider(target.provider { userdevConfiguration.extractedBundle.resolve(devBundleConfig.buildData.reobfMappingsFile) })
+            remapClasspath.from(target.provider { userdevConfiguration.mojangMappedPaperJar })
+
             fromNamespace.set(DEOBF_NAMESPACE)
             toNamespace.set(SPIGOT_NAMESPACE)
+
             remapper.from(project.configurations.named(REMAPPER_CONFIG))
-            remapClasspath.from(project.configurations.named(MOJANG_MAPPED_SERVER_CONFIG))
         }
 
         // Manually check if cleanCache is a target, and skip setup.
