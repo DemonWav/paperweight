@@ -36,13 +36,11 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.ExternalModuleDependency
-import org.gradle.api.artifacts.ModuleDependency
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
-import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.*
 
 abstract class GenerateDevBundle : DefaultTask() {
@@ -86,8 +84,8 @@ abstract class GenerateDevBundle : DefaultTask() {
     @get:Input
     abstract val paramMappingsUrl: Property<String>
 
-    @get:Classpath
-    abstract val paramMappingsConfig: Property<Configuration>
+    @get:Input
+    abstract val paramMappingsCoordinates: Property<String>
 
     @get:Input
     abstract val decompilerUrl: Property<String>
@@ -166,9 +164,8 @@ abstract class GenerateDevBundle : DefaultTask() {
                         val diffText = diffFiles(relativeFilePath, decompFile, file)
                         val patchName = relativeFile.name + ".patch"
                         val outputFile = output.resolve(relativeFilePath).resolveSibling(patchName)
-                        outputFile.parent.createDirectories()
                         if (diffText.isNotBlank()) {
-                            // for some reason we end up with an empty file patch for com/mojang/math/package-info.java
+                            outputFile.parent.createDirectories()
                             outputFile.writeText(diffText)
                         }
                     }
@@ -292,7 +289,7 @@ abstract class GenerateDevBundle : DefaultTask() {
 
     private fun createBuildDataConfig(targetDir: String): BuildData {
         return BuildData(
-            paramMappings = determineMavenDep(paramMappingsUrl, paramMappingsConfig),
+            paramMappings = MavenDep(paramMappingsUrl.get(), listOf(paramMappingsCoordinates.get())),
             reobfMappingsFile = "$targetDir/$reobfMappingsFileName",
             mojangMappedPaperclipFile = "$targetDir/$mojangMappedPaperclipFileName",
             vanillaJarIncludes = vanillaJarIncludes.get(),
@@ -332,26 +329,6 @@ abstract class GenerateDevBundle : DefaultTask() {
         return result
     }
 
-    private fun determineMavenDep(url: Provider<String>, configuration: Provider<Configuration>): MavenDep {
-        return MavenDep(url.get(), determineArtifactCoordinates(configuration.get()))
-    }
-
-    private fun determineArtifactCoordinates(configuration: Configuration): List<String> {
-        return configuration.dependencies.map { dep ->
-            sequenceOf(
-                "group" to dep.group,
-                "name" to dep.name,
-                "version" to dep.version,
-                "classifier" to ((dep as ModuleDependency).artifacts.singleOrNull()?.classifier ?: "")
-            ).filter {
-                if (it.second == null) error("No ${it.first}: $dep")
-                it.second?.isNotEmpty() ?: false
-            }.map {
-                it.second
-            }.joinToString(":")
-        }
-    }
-
     private fun createDecompileRunner(): Runner {
         return Runner(
             dep = determineMavenDep(decompilerUrl, decompilerConfig),
@@ -387,7 +364,6 @@ abstract class GenerateDevBundle : DefaultTask() {
         val relocations: List<Relocation>
     )
 
-    data class MavenDep(val url: String, val coordinates: List<String>)
     data class Runner(val dep: MavenDep, val args: List<String>)
 
     companion object {

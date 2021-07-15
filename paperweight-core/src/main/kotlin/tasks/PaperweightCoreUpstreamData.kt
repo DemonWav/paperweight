@@ -26,11 +26,13 @@ import io.papermc.paperweight.util.*
 import javax.inject.Inject
 import kotlin.io.path.*
 import org.gradle.api.DefaultTask
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.ProviderFactory
+import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.InputFile
@@ -47,6 +49,9 @@ abstract class PaperweightCoreUpstreamData : DefaultTask() {
     abstract val remappedJar: RegularFileProperty
 
     @get:InputFile
+    abstract val initialRemapJar: RegularFileProperty
+
+    @get:InputFile
     abstract val decompiledJar: RegularFileProperty
 
     @get:Input
@@ -54,6 +59,12 @@ abstract class PaperweightCoreUpstreamData : DefaultTask() {
 
     @get:InputDirectory
     abstract val mcLibrariesDir: DirectoryProperty
+
+    @get:InputDirectory
+    abstract val mcLibrariesSourcesDir: DirectoryProperty
+
+    @get:Input
+    abstract val vanillaJarIncludes: ListProperty<String>
 
     @get:Optional
     @get:InputFile
@@ -77,6 +88,12 @@ abstract class PaperweightCoreUpstreamData : DefaultTask() {
     @get:Inject
     abstract val providers: ProviderFactory
 
+    @get:Input
+    abstract val paramMappingsUrl: Property<String>
+
+    @get:Classpath
+    abstract val paramMappingsConfig: Property<Configuration>
+
     @TaskAction
     fun run() {
         val dataFilePath = dataFile.path
@@ -85,15 +102,19 @@ abstract class PaperweightCoreUpstreamData : DefaultTask() {
 
         val data = UpstreamData(
             vanillaJar.path,
+            initialRemapJar.path,
             remappedJar.path,
             decompiledJar.path,
             mcVersion.get(),
             mcLibrariesDir.path,
+            mcLibrariesSourcesDir.path,
             mcLibrariesFile.pathOrNull,
             mappings.path,
             notchToSpigotMappings.path,
             sourceMappings.path,
-            reobfPackagesToFix.get()
+            reobfPackagesToFix.get(),
+            vanillaJarIncludes.get(),
+            determineMavenDep(paramMappingsUrl, paramMappingsConfig)
         )
         dataFilePath.bufferedWriter(Charsets.UTF_8).use { writer ->
             gson.toJson(data, writer)

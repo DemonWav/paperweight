@@ -23,6 +23,7 @@
 package io.papermc.paperweight.patcher
 
 import io.papermc.paperweight.DownloadService
+import io.papermc.paperweight.PaperweightException
 import io.papermc.paperweight.patcher.tasks.CheckoutRepo
 import io.papermc.paperweight.patcher.tasks.PaperweightPatcherUpstreamData
 import io.papermc.paperweight.patcher.tasks.SimpleApplyGitPatches
@@ -30,6 +31,7 @@ import io.papermc.paperweight.patcher.tasks.SimpleRebuildGitPatches
 import io.papermc.paperweight.patcher.upstream.PatchTaskConfig
 import io.papermc.paperweight.patcher.upstream.PatcherUpstream
 import io.papermc.paperweight.patcher.upstream.RepoPatcherUpstream
+import io.papermc.paperweight.taskcontainers.DevBundleTasks
 import io.papermc.paperweight.tasks.*
 import io.papermc.paperweight.util.*
 import io.papermc.paperweight.util.constants.*
@@ -61,6 +63,7 @@ class PaperweightPatcher : Plugin<Project> {
             delete(target.layout.cache)
         }
 
+        target.configurations.create(DECOMPILER_CONFIG)
         target.configurations.create(REMAPPER_CONFIG)
         target.configurations.create(PAPERCLIP_CONFIG)
 
@@ -92,12 +95,10 @@ class PaperweightPatcher : Plugin<Project> {
             description = "Build a runnable paperclip jar"
         }
 
+        val devBundleTasks = DevBundleTasks(target)
+
         target.afterEvaluate {
             target.repositories {
-                maven(patcher.paramMappingsRepo) {
-                    name = PARAM_MAPPINGS_REPO_NAME
-                    content { onlyForConfigurations(PARAM_MAPPINGS_CONFIG) }
-                }
                 maven(patcher.remapRepo) {
                     name = REMAPPER_REPO_NAME
                     content { onlyForConfigurations(REMAPPER_CONFIG) }
@@ -129,6 +130,21 @@ class PaperweightPatcher : Plugin<Project> {
                 inputJar.set(serverProj.tasks.named("shadowJar", Jar::class).flatMap { it.archiveFile })
 
                 reobfMappings.set(target.layout.cache.resolve(REOBF_MOJANG_SPIGOT_MAPPINGS))
+            }
+
+            devBundleTasks.configure(
+                patcher.serverProject,
+                upstreamData.map { it.mcVersion },
+                upstreamData.map { it.vanillaJar },
+                upstreamData.map { it.initialRemapJar },
+                upstreamData.map { it.libFile ?: throw PaperweightException("No libs file?") },
+                upstreamData.map { it.libDir },
+            ) {
+                vanillaJarIncludes.set(upstreamData.map { it.vanillaIncludes })
+                reobfMappingsFile.set(generateReobfMappings.flatMap { it.reobfMappings })
+
+                paramMappingsCoordinates.set(upstreamData.map { it.paramMappings.coordinates.single() })
+                paramMappingsUrl.set(upstreamData.map { it.paramMappings.url })
             }
 
             val (_, reobfJar) = serverProj.setupServerProject(

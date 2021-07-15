@@ -44,7 +44,7 @@ abstract class PaperweightUserExtension(
     /**
      * Provides a runnable Mojang mapped server jar, extracted from the current dev bundle.
      */
-    val mojangMappedPaperServerJar: Provider<RegularFile> = objects.fileProperty().value(
+    val mojangMappedServerJar: Provider<RegularFile> = objects.fileProperty().value(
         project.layout.file(
             configuration.map {
                 it.extractedBundle.resolve(it.devBundleConfig.buildData.mojangMappedPaperclipFile).toFile()

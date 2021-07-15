@@ -26,7 +26,7 @@ import io.papermc.paperweight.DownloadService
 import io.papermc.paperweight.core.extension.PaperweightCoreExtension
 import io.papermc.paperweight.core.taskcontainers.AllTasks
 import io.papermc.paperweight.core.tasks.PaperweightCoreUpstreamData
-import io.papermc.paperweight.extension.RelocationExtension
+import io.papermc.paperweight.taskcontainers.DevBundleTasks
 import io.papermc.paperweight.tasks.*
 import io.papermc.paperweight.tasks.patchremap.RemapPatches
 import io.papermc.paperweight.util.*
@@ -34,6 +34,7 @@ import io.papermc.paperweight.util.constants.*
 import java.io.File
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.bundling.Jar
@@ -63,20 +64,46 @@ class PaperweightCore : Plugin<Project> {
         target.configurations.create(PAPERCLIP_CONFIG)
 
         val tasks = AllTasks(target)
+
+        val devBundleTasks = DevBundleTasks(target)
+        devBundleTasks.configure(
+            ext.serverProject,
+            ext.minecraftVersion,
+            tasks.downloadServerJar.map { it.outputJar.path },
+            tasks.remapJar.map { it.outputJar.path },
+            tasks.inspectVanillaJar.map { it.serverLibraries.path },
+            tasks.downloadMcLibraries.map { it.outputDir.path }
+        ) {
+            vanillaJarIncludes.set(ext.vanillaJarIncludes)
+            reobfMappingsFile.set(tasks.patchReobfMappings.flatMap { it.outputMappings })
+
+            paramMappingsCoordinates.set(
+                target.provider { determineArtifactCoordinates(target.configurations.named(PARAM_MAPPINGS_CONFIG).get()).single() }
+            )
+            paramMappingsUrl.set(
+                target.provider { target.repositories.named<MavenArtifactRepository>(PARAM_MAPPINGS_REPO_NAME).get().url.toString() }
+            )
+        }
+
         target.createPatchRemapTask(tasks)
 
         target.tasks.register<PaperweightCoreUpstreamData>(PAPERWEIGHT_PREPARE_DOWNSTREAM) {
             dependsOn(tasks.applyPatches)
             vanillaJar.set(tasks.downloadServerJar.flatMap { it.outputJar })
+            initialRemapJar.set(tasks.remapJar.flatMap { it.outputJar })
             remappedJar.set(tasks.copyResources.flatMap { it.outputJar })
             decompiledJar.set(tasks.decompileJar.flatMap { it.outputJar })
             mcVersion.set(target.ext.minecraftVersion)
             mcLibrariesFile.set(tasks.inspectVanillaJar.flatMap { it.serverLibraries })
-            mcLibrariesDir.set(tasks.downloadMcLibraries.flatMap { it.sourcesOutputDir })
+            mcLibrariesDir.set(tasks.downloadMcLibraries.flatMap { it.outputDir })
+            mcLibrariesSourcesDir.set(tasks.downloadMcLibraries.flatMap { it.sourcesOutputDir })
             mappings.set(tasks.patchMappings.flatMap { it.outputMappings })
             notchToSpigotMappings.set(tasks.generateSpigotMappings.flatMap { it.notchToSpigotMappings })
             sourceMappings.set(tasks.generateMappings.flatMap { it.outputMappings })
             reobfPackagesToFix.set(ext.paper.reobfPackagesToFix)
+            vanillaJarIncludes.set(ext.vanillaJarIncludes)
+            paramMappingsUrl.set(ext.paramMappingsRepo)
+            paramMappingsConfig.set(target.configurations.named(PARAM_MAPPINGS_CONFIG))
 
             dataFile.set(
                 target.layout.file(
@@ -113,7 +140,6 @@ class PaperweightCore : Plugin<Project> {
 
             val serverProj = target.ext.serverProject.forUseAtConfigurationTime().orNull ?: return@afterEvaluate
             serverProj.apply(plugin = "com.github.johnrengelman.shadow")
-            serverProj.extensions.create<RelocationExtension>(RELOCATION_EXTENSION, serverProj.objects)
 
             tasks.generateReobfMappings {
                 inputJar.set(serverProj.tasks.named("shadowJar", Jar::class).flatMap { it.archiveFile })
