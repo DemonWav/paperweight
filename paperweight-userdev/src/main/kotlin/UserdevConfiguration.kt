@@ -31,7 +31,6 @@ import io.papermc.paperweight.tasks.*
 import io.papermc.paperweight.userdev.configuration.applyDevBundlePatches
 import io.papermc.paperweight.userdev.configuration.extractDevBundle
 import io.papermc.paperweight.userdev.configuration.filterPaperJar
-import io.papermc.paperweight.userdev.configuration.installToIvyRepo
 import io.papermc.paperweight.userdev.configuration.patchPaperclip
 import io.papermc.paperweight.util.*
 import io.papermc.paperweight.util.constants.*

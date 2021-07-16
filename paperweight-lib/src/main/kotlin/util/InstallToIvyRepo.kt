@@ -20,18 +20,18 @@
  * USA
  */
 
-package io.papermc.paperweight.userdev.configuration
+package io.papermc.paperweight.util
 
 import java.nio.file.Path
 import kotlin.io.path.*
 
 fun installToIvyRepo(
-    cache: Path,
+    repo: Path,
     artifactCoordinates: String,
     sourcesJar: Path,
     binaryJar: Path
 ) {
-    val (group, name, version, versionDir) = parseCoordinates(artifactCoordinates, cache)
+    val (group, name, version, versionDir) = parseCoordinates(artifactCoordinates, repo)
 
     versionDir.createDirectories()
 

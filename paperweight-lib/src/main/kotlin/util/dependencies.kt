@@ -33,12 +33,12 @@ fun determineMavenDep(url: Provider<String>, configuration: Provider<Configurati
 }
 
 fun determineArtifactCoordinates(configuration: Configuration): List<String> {
-    return configuration.dependencies.map { dep ->
+    return configuration.dependencies.filterIsInstance<ModuleDependency>().map { dep ->
         sequenceOf(
             "group" to dep.group,
             "name" to dep.name,
             "version" to dep.version,
-            "classifier" to ((dep as ModuleDependency).artifacts.singleOrNull()?.classifier ?: "")
+            "classifier" to (dep.artifacts.singleOrNull()?.classifier ?: "")
         ).filter {
             if (it.second == null) error("No ${it.first}: $dep")
             it.second?.isNotEmpty() ?: false
