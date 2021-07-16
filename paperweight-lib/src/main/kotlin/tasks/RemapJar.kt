@@ -22,14 +22,88 @@
 
 package io.papermc.paperweight.tasks
 
+import io.papermc.paperweight.PaperweightException
 import io.papermc.paperweight.util.*
 import io.papermc.paperweight.util.constants.*
+import java.nio.file.Path
 import kotlin.io.path.*
 import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.FileCollection
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.*
+import org.gradle.jvm.toolchain.JavaLauncher
+
+val tinyRemapperArgsList: List<String> = listOf(
+    "{input}",
+    "{output}",
+    "{mappings}",
+    "{from}",
+    "{to}",
+    "{classpath}",
+    "--fix-package-access",
+    "--rename-invalid-locals",
+    "--threads=1",
+    "--rebuild-source-filenames"
+)
+
+private fun List<String>.createTinyRemapperArgs(
+    input: String,
+    output: String,
+    mappings: String,
+    from: String,
+    to: String,
+    classpath: Array<String>
+): List<String> {
+    val result = mutableListOf<String>()
+    for (arg in this) {
+        val mapped = when (arg) {
+            "{input}" -> input
+            "{output}" -> output
+            "{mappings}" -> mappings
+            "{from}" -> from
+            "{to}" -> to
+            "{classpath}" -> classpath
+            else -> arg
+        }
+        when (mapped) {
+            is String -> result += mapped
+            is Array<*> -> mapped.mapTo(result) { it as? String ?: throw PaperweightException("Expected String! Got: '$it'.") }
+            else -> throw PaperweightException("Don't know what to do with '$mapped'!")
+        }
+    }
+    return result
+}
+
+fun runTinyRemapper(
+    argsList: List<String>,
+    logFile: Path,
+    inputJar: Path,
+    mappingsFile: Path,
+    fromNamespace: String,
+    toNamespace: String,
+    remapClasspath: List<Path>,
+    remapper: FileCollection,
+    outputJar: Path,
+    launcher: JavaLauncher,
+    workingDir: Path,
+    jvmArgs: List<String> = listOf("-Xmx1G")
+) {
+    ensureDeleted(logFile)
+
+    val args = argsList.createTinyRemapperArgs(
+        inputJar.absolutePathString(),
+        outputJar.absolutePathString(),
+        mappingsFile.absolutePathString(),
+        fromNamespace,
+        toNamespace,
+        remapClasspath.map { it.absolutePathString() }.toTypedArray()
+    )
+
+    ensureParentExists(logFile)
+    launcher.runJar(remapper, workingDir, logFile, jvmArgs = jvmArgs, args = args.toTypedArray())
+}
 
 @CacheableTask
 abstract class RemapJar : JavaLauncherTask() {
@@ -47,9 +121,6 @@ abstract class RemapJar : JavaLauncherTask() {
     @get:Input
     abstract val toNamespace: Property<String>
 
-    @get:Input
-    abstract val rebuildSourceFilenames: Property<Boolean>
-
     @get:CompileClasspath
     abstract val remapClasspath: ConfigurableFileCollection
 
@@ -62,41 +133,29 @@ abstract class RemapJar : JavaLauncherTask() {
     @get:Internal
     abstract val jvmargs: ListProperty<String>
 
-    @get:Internal
-    abstract val singleThreaded: Property<Boolean>
-
     override fun init() {
         super.init()
 
         outputJar.convention(defaultOutput())
-        singleThreaded.convention(true)
         jvmargs.convention(listOf("-Xmx1G"))
-        rebuildSourceFilenames.convention(true)
     }
 
     @TaskAction
     fun run() {
         val logFile = layout.cache.resolve(paperTaskOutput("log"))
-        ensureDeleted(logFile)
-
-        val args = mutableListOf(
-            inputJar.path.absolutePathString(),
-            outputJar.path.absolutePathString(),
-            mappingsFile.path.absolutePathString(),
+        runTinyRemapper(
+            tinyRemapperArgsList,
+            logFile,
+            inputJar.path,
+            mappingsFile.path,
             fromNamespace.get(),
             toNamespace.get(),
-            *remapClasspath.asFileTree.map { it.absolutePath }.toTypedArray(),
-            "--fixpackageaccess",
-            "--renameinvalidlocals"
+            remapClasspath.files.map { it.toPath() },
+            remapper,
+            outputJar.path,
+            launcher.get(),
+            layout.cache,
+            jvmargs.get()
         )
-        if (singleThreaded.get()) {
-            args += "--threads=1"
-        }
-        if (rebuildSourceFilenames.get()) {
-            args += "--rebuildsourcefilenames"
-        }
-
-        ensureParentExists(logFile)
-        launcher.runJar(remapper, layout.cache, logFile, jvmArgs = jvmargs.get(), args = args.toTypedArray())
     }
 }

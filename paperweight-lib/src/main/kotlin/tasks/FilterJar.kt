@@ -23,7 +23,6 @@
 package io.papermc.paperweight.tasks
 
 import io.papermc.paperweight.util.*
-import kotlin.io.path.*
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.tasks.CacheableTask
@@ -49,25 +48,11 @@ abstract class FilterJar : BaseTask() {
     }
 
     @TaskAction
-    fun run() {
-        val out = outputJar.path
-        val target = out.resolveSibling("${out.name}.dir")
-        target.createDirectories()
-
-        inputJar.path.openZip().use { zip ->
-            val matchers = includes.get().map { zip.getPathMatcher("glob:$it") }
-
-            zip.walk().use { stream ->
-                stream.filter { p -> matchers.any { matcher -> matcher.matches(p) } }
-                    .forEach { p ->
-                        val targetFile = target.resolve(p.absolutePathString().substring(1))
-                        targetFile.parent.createDirectories()
-                        p.copyTo(targetFile)
-                    }
-            }
-        }
-
-        zip(target, outputJar)
-        target.deleteRecursively()
+    open fun run() {
+        filterJar(
+            inputJar.path,
+            outputJar.path,
+            includes.get()
+        )
     }
 }

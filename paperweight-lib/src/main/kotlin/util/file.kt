@@ -29,6 +29,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.PathMatcher
 import java.nio.file.attribute.DosFileAttributeView
+import java.security.DigestInputStream
+import java.security.MessageDigest
 import java.util.stream.Stream
 import java.util.stream.StreamSupport
 import kotlin.io.path.*
@@ -105,14 +107,14 @@ private fun Path.fixWindowsPermissionsForDeletion() {
     }
 }
 
-fun Path.copyRecursively(target: Path) {
+fun Path.copyRecursivelyTo(target: Path) {
     target.createDirectories()
     if (!exists()) {
         return
     }
     Files.walk(this).use { stream ->
-        stream.forEach { f ->
-            val targetPath = target.resolve(f.relativeTo(this))
+        for (f in stream) {
+            val targetPath = target.resolve(f.relativeTo(this).invariantSeparatorsPathString)
             if (f.isDirectory()) {
                 targetPath.createDirectories()
             } else {
@@ -140,3 +142,31 @@ fun FileSystem.walk(): Stream<Path> {
 }
 
 fun ProcessBuilder.directory(path: Path): ProcessBuilder = directory(path.toFile())
+
+fun Path.hashFile(digest: MessageDigest): ByteArray = inputStream().use { iS ->
+    val digestStream = DigestInputStream(iS, digest)
+    digestStream.use { stream ->
+        val buffer = ByteArray(1024)
+        while (stream.read(buffer) != -1) {
+            // reading
+        }
+    }
+    digestStream.messageDigest.digest()
+}
+
+fun Path.sha256asHex(): String = toHex(hashFile(digestSha256()))
+
+private fun hashFile(file: Path): Path {
+    val sha256 = file.resolveSibling("sha256")
+    sha256.createDirectories()
+    return sha256.resolve("${file.name}.sha256")
+}
+
+fun Path.hasCorrect256(): Boolean {
+    val hashFile = hashFile(this)
+    return isRegularFile() &&
+        hashFile.isRegularFile() &&
+        hashFile.readText(Charsets.UTF_8) == sha256asHex()
+}
+
+fun Path.writeSha256() = hashFile(this).writeText(sha256asHex(), Charsets.UTF_8)

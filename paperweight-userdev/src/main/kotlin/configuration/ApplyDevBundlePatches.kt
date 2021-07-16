@@ -20,40 +20,41 @@
  * USA
  */
 
-package io.papermc.paperweight.tasks
+package io.papermc.paperweight.userdev.configuration
 
 import io.papermc.paperweight.util.*
+import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.*
-import org.gradle.api.DefaultTask
-import org.gradle.api.file.RegularFileProperty
-import org.gradle.api.provider.ListProperty
-import org.gradle.api.tasks.CacheableTask
-import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.OutputFile
-import org.gradle.api.tasks.TaskAction
 
-@CacheableTask
-abstract class SetupMcLibraries : DefaultTask() {
+fun applyDevBundlePatches(
+    decompiledJar: Path,
+    devBundlePatches: Path,
+    outputJar: Path
+) {
+    Git.checkForGit()
 
-    @get:Input
-    abstract val dependencies: ListProperty<String>
+    val workDir = findOutputDir(outputJar)
 
-    @get:OutputFile
-    abstract val outputFile: RegularFileProperty
+    try {
+        unzip(decompiledJar, workDir)
+        val git = Git(workDir)
 
-    @TaskAction
-    fun run() {
-        setupMinecraftLibraries(dependencies.get(), outputFile.path)
-    }
-}
-
-fun setupMinecraftLibraries(dependencies: List<String>, outputFile: Path) {
-    val list = dependencies.sorted()
-
-    outputFile.bufferedWriter().use { writer ->
-        for (line in list) {
-            writer.appendLine(line)
+        Files.walk(devBundlePatches).use { stream ->
+            stream.forEach {
+                if (it.name.endsWith(".patch")) {
+                    git("apply", it.absolutePathString()).executeOut()
+                } else if (it.isRegularFile()) {
+                    val destination = workDir.resolve(it.relativeTo(devBundlePatches))
+                    destination.parent.createDirectories()
+                    it.copyTo(destination, overwrite = true)
+                }
+            }
         }
+
+        ensureDeleted(outputJar)
+        zip(workDir, outputJar)
+    } finally {
+        workDir.deleteRecursively()
     }
 }

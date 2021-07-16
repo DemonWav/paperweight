@@ -36,14 +36,14 @@ import java.net.URI
 import java.net.URL
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.security.MessageDigest
+import java.security.NoSuchAlgorithmException
 import java.util.Collections
 import java.util.IdentityHashMap
 import java.util.Optional
 import java.util.concurrent.ThreadLocalRandom
-import kotlin.io.path.bufferedReader
-import kotlin.io.path.createDirectories
-import kotlin.io.path.exists
-import kotlin.io.path.name
+import kotlin.experimental.and
+import kotlin.io.path.*
 import org.cadixdev.lorenz.merge.MergeResult
 import org.cadixdev.lorenz.model.ClassMapping
 import org.cadixdev.lorenz.model.MemberMapping
@@ -52,12 +52,17 @@ import org.gradle.api.Task
 import org.gradle.api.file.FileSystemLocation
 import org.gradle.api.file.ProjectLayout
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.TaskContainer
 import org.gradle.api.tasks.TaskProvider
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JavaLauncher
+import org.gradle.jvm.toolchain.JavaToolchainService
+import org.gradle.jvm.toolchain.JvmVendorSpec
 import org.gradle.kotlin.dsl.*
 
-val gson: Gson = GsonBuilder().setPrettyPrinting().registerTypeHierarchyAdapter(Path::class.java, PathJsonConverter()).create()
+val gson: Gson = GsonBuilder().disableHtmlEscaping().setPrettyPrinting().registerTypeHierarchyAdapter(Path::class.java, PathJsonConverter()).create()
 
 class PathJsonConverter : JsonDeserializer<Path?>, JsonSerializer<Path?> {
     override fun deserialize(json: JsonElement?, typeOfT: Type?, context: JsonDeserializationContext?): Path? {
@@ -69,8 +74,10 @@ class PathJsonConverter : JsonDeserializer<Path?>, JsonSerializer<Path?> {
     }
 }
 
-inline fun <reified T> Gson.fromJson(file: Any): T =
-    file.convertToPath().bufferedReader(Charsets.UTF_8).use { fromJson(it) }
+inline fun <reified T> Gson.fromJson(any: Any): T = when (any) {
+    is String -> fromJson(any)
+    else -> any.convertToPath().bufferedReader(Charsets.UTF_8).use { fromJson(it) }
+}
 
 val ProjectLayout.cache: Path
     get() = projectDirectory.file(".gradle/$CACHE_PATH").path
@@ -241,3 +248,28 @@ fun <T> emptyMergeResult(): MergeResult<T?> {
 
 inline fun <reified T : Task> TaskContainer.registering(noinline configuration: T.() -> Unit) = registering(T::class, configuration)
 inline fun <reified T : Task> TaskContainer.registering() = registering(T::class)
+
+fun digestSha256(): MessageDigest = try {
+    MessageDigest.getInstance("SHA-256")
+} catch (e: NoSuchAlgorithmException) {
+    throw PaperweightException("Could not create SHA-256 hasher", e)
+}
+
+fun toHex(hash: ByteArray): String {
+    val sb: StringBuilder = StringBuilder(hash.size * 2)
+    for (aHash in hash) {
+        sb.append("%02X".format(aHash and 0xFF.toByte()))
+    }
+    return sb.toString()
+}
+
+fun JavaToolchainService.defaultJavaLauncher(project: Project): Provider<JavaLauncher> {
+    return launcherFor(project.extensions.getByType<JavaPluginExtension>().toolchain)
+        .orElse(
+            launcherFor {
+                // If the java plugin isn't applied, or no toolchain value was set
+                languageVersion.set(JavaLanguageVersion.of(16))
+                vendor.set(JvmVendorSpec.ADOPTOPENJDK)
+            }
+        )
+}

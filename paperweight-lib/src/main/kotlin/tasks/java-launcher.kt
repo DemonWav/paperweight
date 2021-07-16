@@ -22,28 +22,17 @@
 
 package io.papermc.paperweight.tasks
 
+import io.papermc.paperweight.util.*
 import javax.inject.Inject
 import org.gradle.api.Project
-import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.Nested
-import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JavaLauncher
 import org.gradle.jvm.toolchain.JavaToolchainService
-import org.gradle.jvm.toolchain.JvmVendorSpec
-import org.gradle.kotlin.dsl.*
 
-private fun JavaLauncherTaskBase.defaultJavaLauncher(project: Project): Provider<JavaLauncher> {
-    return javaToolchainService.launcherFor(project.extensions.getByType<JavaPluginExtension>().toolchain)
-        .orElse(
-            javaToolchainService.launcherFor {
-                // If the java plugin isn't applied, or no toolchain value was set
-                languageVersion.set(JavaLanguageVersion.of(16))
-                vendor.set(JvmVendorSpec.ADOPTOPENJDK)
-            }
-        )
-}
+private fun JavaLauncherTaskBase.defaultJavaLauncher(project: Project): Provider<JavaLauncher> =
+    javaToolchainService.defaultJavaLauncher(project)
 
 interface JavaLauncherTaskBase {
     @get:Nested

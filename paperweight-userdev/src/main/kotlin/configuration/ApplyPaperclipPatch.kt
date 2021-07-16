@@ -20,40 +20,32 @@
  * USA
  */
 
-package io.papermc.paperweight.tasks
+package io.papermc.paperweight.userdev.configuration
 
 import io.papermc.paperweight.util.*
 import java.nio.file.Path
 import kotlin.io.path.*
-import org.gradle.api.DefaultTask
-import org.gradle.api.file.RegularFileProperty
-import org.gradle.api.provider.ListProperty
-import org.gradle.api.tasks.CacheableTask
-import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.OutputFile
-import org.gradle.api.tasks.TaskAction
+import org.gradle.api.Project
+import org.gradle.jvm.toolchain.JavaLauncher
 
-@CacheableTask
-abstract class SetupMcLibraries : DefaultTask() {
-
-    @get:Input
-    abstract val dependencies: ListProperty<String>
-
-    @get:OutputFile
-    abstract val outputFile: RegularFileProperty
-
-    @TaskAction
-    fun run() {
-        setupMinecraftLibraries(dependencies.get(), outputFile.path)
-    }
-}
-
-fun setupMinecraftLibraries(dependencies: List<String>, outputFile: Path) {
-    val list = dependencies.sorted()
-
-    outputFile.bufferedWriter().use { writer ->
-        for (line in list) {
-            writer.appendLine(line)
-        }
-    }
+fun patchPaperclip(
+    project: Project,
+    launcher: JavaLauncher,
+    paperclip: Path,
+    outputJar: Path,
+    logFile: Path
+) {
+    val work = createTempDirectory()
+    logFile.deleteForcefully()
+    launcher.runJar(
+        classpath = project.files(paperclip),
+        workingDir = work,
+        logFile = logFile,
+        jvmArgs = listOf("-Dpaperclip.patchonly=true"),
+        args = arrayOf()
+    )
+    val patched = work.resolve("cache").listDirectoryEntries()
+        .find { it.name.startsWith("patched") } ?: error("Can't find patched jar!")
+    patched.copyTo(outputJar, overwrite = true)
+    work.deleteRecursively()
 }

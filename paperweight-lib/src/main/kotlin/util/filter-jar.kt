@@ -20,40 +20,33 @@
  * USA
  */
 
-package io.papermc.paperweight.tasks
+package io.papermc.paperweight.util
 
-import io.papermc.paperweight.util.*
 import java.nio.file.Path
 import kotlin.io.path.*
-import org.gradle.api.DefaultTask
-import org.gradle.api.file.RegularFileProperty
-import org.gradle.api.provider.ListProperty
-import org.gradle.api.tasks.CacheableTask
-import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.OutputFile
-import org.gradle.api.tasks.TaskAction
 
-@CacheableTask
-abstract class SetupMcLibraries : DefaultTask() {
+fun filterJar(
+    inputJar: Path,
+    outputJar: Path,
+    includes: List<String>,
+    predicate: (Path) -> Boolean = { false }
+) {
+    val target = outputJar.resolveSibling("${outputJar.name}.dir")
+    target.createDirectories()
 
-    @get:Input
-    abstract val dependencies: ListProperty<String>
+    inputJar.openZip().use { zip ->
+        val matchers = includes.map { zip.getPathMatcher("glob:$it") }
 
-    @get:OutputFile
-    abstract val outputFile: RegularFileProperty
-
-    @TaskAction
-    fun run() {
-        setupMinecraftLibraries(dependencies.get(), outputFile.path)
-    }
-}
-
-fun setupMinecraftLibraries(dependencies: List<String>, outputFile: Path) {
-    val list = dependencies.sorted()
-
-    outputFile.bufferedWriter().use { writer ->
-        for (line in list) {
-            writer.appendLine(line)
+        zip.walk().use { stream ->
+            stream.filter { p -> predicate(p) || matchers.any { matcher -> matcher.matches(p) } }
+                .forEach { p ->
+                    val targetFile = target.resolve(p.absolutePathString().substring(1))
+                    targetFile.parent.createDirectories()
+                    p.copyTo(targetFile)
+                }
         }
     }
+
+    zip(target, outputJar)
+    target.deleteRecursively()
 }

@@ -23,6 +23,7 @@
 package io.papermc.paperweight.patcher
 
 import io.papermc.paperweight.DownloadService
+import io.papermc.paperweight.PaperweightException
 import io.papermc.paperweight.patcher.tasks.CheckoutRepo
 import io.papermc.paperweight.patcher.tasks.PaperweightPatcherUpstreamData
 import io.papermc.paperweight.patcher.tasks.SimpleApplyGitPatches
@@ -30,6 +31,7 @@ import io.papermc.paperweight.patcher.tasks.SimpleRebuildGitPatches
 import io.papermc.paperweight.patcher.upstream.PatchTaskConfig
 import io.papermc.paperweight.patcher.upstream.PatcherUpstream
 import io.papermc.paperweight.patcher.upstream.RepoPatcherUpstream
+import io.papermc.paperweight.taskcontainers.DevBundleTasks
 import io.papermc.paperweight.tasks.*
 import io.papermc.paperweight.util.*
 import io.papermc.paperweight.util.constants.*
@@ -61,6 +63,7 @@ class PaperweightPatcher : Plugin<Project> {
             delete(target.layout.cache)
         }
 
+        target.configurations.create(DECOMPILER_CONFIG)
         target.configurations.create(REMAPPER_CONFIG)
         target.configurations.create(PAPERCLIP_CONFIG)
 
@@ -92,7 +95,20 @@ class PaperweightPatcher : Plugin<Project> {
             description = "Build a runnable paperclip jar"
         }
 
+        val devBundleTasks = DevBundleTasks(target)
+
         target.afterEvaluate {
+            target.repositories {
+                maven(patcher.remapRepo) {
+                    name = REMAPPER_REPO_NAME
+                    content { onlyForConfigurations(REMAPPER_CONFIG) }
+                }
+                maven(patcher.decompileRepo) {
+                    name = DECOMPILER_REPO_NAME
+                    content { onlyForConfigurations(DECOMPILER_CONFIG) }
+                }
+            }
+
             val upstreamDataTask = upstreamDataTaskRef.get() ?: return@afterEvaluate
 
             for (upstream in patcher.upstreams) {
@@ -116,6 +132,21 @@ class PaperweightPatcher : Plugin<Project> {
                 reobfMappings.set(target.layout.cache.resolve(REOBF_MOJANG_SPIGOT_MAPPINGS))
             }
 
+            devBundleTasks.configure(
+                patcher.serverProject,
+                upstreamData.map { it.mcVersion },
+                upstreamData.map { it.vanillaJar },
+                upstreamData.map { it.initialRemapJar },
+                upstreamData.map { it.libFile ?: throw PaperweightException("No libs file?") },
+                upstreamData.map { it.libDir },
+            ) {
+                vanillaJarIncludes.set(upstreamData.map { it.vanillaIncludes })
+                reobfMappingsFile.set(generateReobfMappings.flatMap { it.reobfMappings })
+
+                paramMappingsCoordinates.set(upstreamData.map { it.paramMappings.coordinates.single() })
+                paramMappingsUrl.set(upstreamData.map { it.paramMappings.url })
+            }
+
             val (_, reobfJar) = serverProj.setupServerProject(
                 target,
                 upstreamData.map { it.remappedJar },
@@ -131,20 +162,7 @@ class PaperweightPatcher : Plugin<Project> {
                 mcVersion.set(upstreamData.map { it.mcVersion })
             }
 
-            paperclipJar {
-                with(target.tasks.named("jar", Jar::class).get())
-
-                val paperclipConfig = target.configurations.named(PAPERCLIP_CONFIG)
-                dependsOn(paperclipConfig, generatePaperclipPatch)
-
-                val paperclipZip = target.zipTree(paperclipConfig.map { it.singleFile })
-                from(paperclipZip) {
-                    exclude("META-INF/MANIFEST.MF")
-                }
-                from(target.zipTree(generatePaperclipPatch.flatMap { it.outputZip }.get()))
-
-                manifest.from(paperclipZip.matching { include("META-INF/MANIFEST.MF") }.elements.map { it.single() })
-            }
+            paperclipJar.configurePaperclipJar(target, generatePaperclipPatch)
         }
     }
 

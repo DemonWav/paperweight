@@ -35,6 +35,7 @@ import dev.denwav.hypo.mappings.contributors.RemoveUnusedMappings
 import dev.denwav.hypo.model.ClassProviderRoot
 import io.papermc.paperweight.util.*
 import io.papermc.paperweight.util.constants.*
+import java.nio.file.Path
 import javax.inject.Inject
 import kotlin.io.path.*
 import org.cadixdev.lorenz.MappingSet
@@ -54,10 +55,35 @@ import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.tasks.*
+import org.gradle.jvm.toolchain.JavaLauncher
 import org.gradle.kotlin.dsl.*
 import org.gradle.workers.WorkAction
 import org.gradle.workers.WorkParameters
 import org.gradle.workers.WorkerExecutor
+
+fun generateMappings(
+    vanillaJarPath: Path,
+    libraryPaths: List<Path>,
+    vanillaMappingsPath: Path,
+    paramMappingsPath: Path,
+    outputMappingsPath: Path,
+    workerExecutor: WorkerExecutor,
+    launcher: JavaLauncher,
+    jvmArgs: List<String> = listOf("-Xmx1G")
+) {
+    val queue = workerExecutor.processIsolation {
+        forkOptions.jvmArgs(jvmArgs)
+        forkOptions.executable(launcher.executablePath.path.absolutePathString())
+    }
+
+    queue.submit(GenerateMappings.GenerateMappingsAction::class) {
+        vanillaJar.set(vanillaJarPath)
+        libraries.from(libraryPaths)
+        vanillaMappings.set(vanillaMappingsPath)
+        paramMappings.set(paramMappingsPath)
+        outputMappings.set(outputMappingsPath)
+    }
+}
 
 @CacheableTask
 abstract class GenerateMappings : JavaLauncherTask() {
@@ -93,18 +119,16 @@ abstract class GenerateMappings : JavaLauncherTask() {
 
     @TaskAction
     fun run() {
-        val queue = workerExecutor.processIsolation {
-            forkOptions.jvmArgs(jvmargs.get())
-            forkOptions.executable(launcher.get().executablePath.path.absolutePathString())
-        }
-
-        queue.submit(GenerateMappingsAction::class) {
-            vanillaJar.set(this@GenerateMappings.vanillaJar.path)
-            libraries.from(this@GenerateMappings.libraries.files)
-            vanillaMappings.set(this@GenerateMappings.vanillaMappings.path)
-            paramMappings.set(this@GenerateMappings.paramMappings.path)
-            outputMappings.set(this@GenerateMappings.outputMappings.path)
-        }
+        generateMappings(
+            vanillaJar.path,
+            libraries.files.map { it.toPath() },
+            vanillaMappings.path,
+            paramMappings.path,
+            outputMappings.path,
+            workerExecutor,
+            launcher.get(),
+            jvmargs.get()
+        )
     }
 
     interface GenerateMappingsParams : WorkParameters {

@@ -31,10 +31,20 @@ const val MC_LIBRARY_URL = "https://libraries.minecraft.net/"
 
 const val MC_MANIFEST_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json"
 
+const val PAPER_MAVEN_REPO_URL = "https://papermc.io/repo/repository/maven-public/"
+
 const val PARAM_MAPPINGS_CONFIG = "paramMappings"
 const val REMAPPER_CONFIG = "remapper"
 const val DECOMPILER_CONFIG = "decompiler"
 const val PAPERCLIP_CONFIG = "paperclip"
+const val DEV_BUNDLE_CONFIG = "paperweightDevelopmentBundle"
+const val MOJANG_MAPPED_SERVER_CONFIG = "mojangMappedServer"
+const val MINECRAFT_LIBRARIES_CONFIG = "minecraftLibraries"
+const val PAPER_API_CONFIG = "paperApi"
+
+const val PARAM_MAPPINGS_REPO_NAME = "paperweightParamMappingsRepository"
+const val DECOMPILER_REPO_NAME = "paperweightDecompilerRepository"
+const val REMAPPER_REPO_NAME = "paperweightRemapperRepository"
 
 const val CACHE_PATH = "caches"
 private const val PAPER_PATH = "paperweight"
@@ -72,11 +82,17 @@ const val VERSION_JSON = "$DATA_PATH/McVersion.json"
 const val MC_LIBRARIES = "$DATA_PATH/McLibraries.txt"
 const val SERVER_LIBRARIES = "$DATA_PATH/ServerLibraries.txt"
 
+private const val CONFIGURATION_CACHE = "$PAPER_PATH/configurationCache"
 private const val TASK_CACHE = "$PAPER_PATH/taskCache"
 
 const val FINAL_REMAPPED_JAR = "$TASK_CACHE/minecraft.jar"
 
 const val MC_DEV_DIR = "mcdev-source"
 
+const val IVY_REPOSITORY = "$PAPER_PATH/ivyRepository"
+
+const val RELOCATION_EXTENSION = "relocation"
+
+fun paperConfigurationOutput(name: String, ext: String) = "$CONFIGURATION_CACHE/$name.$ext"
 fun Task.paperTaskOutput(ext: String) = paperTaskOutput(name, ext)
 fun paperTaskOutput(name: String, ext: String) = "$TASK_CACHE/$name.$ext"

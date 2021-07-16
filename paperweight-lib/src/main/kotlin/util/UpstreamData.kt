@@ -28,15 +28,19 @@ import org.gradle.api.file.RegularFile
 
 data class UpstreamData(
     val vanillaJar: Path,
+    val initialRemapJar: Path,
     val remappedJar: Path,
     val decompiledJar: Path,
     val mcVersion: String,
+    val libDir: Path,
     val libSourceDir: Path,
     val libFile: Path?,
     val mappings: Path,
     val notchToSpigotMappings: Path,
     val sourceMappings: Path,
-    val reobfPackagesToFix: List<String>?
+    val reobfPackagesToFix: List<String>?,
+    val vanillaIncludes: List<String>,
+    val paramMappings: MavenDep
 )
 
 fun readUpstreamData(inputFile: RegularFile): UpstreamData? {

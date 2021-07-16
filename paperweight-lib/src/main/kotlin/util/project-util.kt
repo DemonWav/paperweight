@@ -22,6 +22,7 @@
 
 package io.papermc.paperweight.util
 
+import io.papermc.paperweight.extension.RelocationExtension
 import io.papermc.paperweight.tasks.*
 import io.papermc.paperweight.util.constants.*
 import kotlin.io.path.*
@@ -43,6 +44,8 @@ fun Project.setupServerProject(
     }
 
     plugins.apply("java")
+
+    extensions.create<RelocationExtension>(RELOCATION_EXTENSION, objects)
 
     configurations {
         named("implementation") {
